@@ -343,6 +343,7 @@ function parseApiResults(data, search) {
       itemId: numericId,
       searchId: search.id,
       searchName: search.name,
+      cardColor: search.cardColor || null,
       site: search.site,
       title: item.title,
       price,

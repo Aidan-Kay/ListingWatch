@@ -5,6 +5,7 @@ let settings = {};
 let currentPage = "feed";
 let modalEnabled = true;
 let newCount = 0;
+let modalCardColor = null;
 // Category tree state
 let currentCategoryTree = []; // flat array of { id, name, depth, parentId }
 
@@ -185,10 +186,14 @@ function renderFeed() {
         })
         .join("");
 
+      const cardColorStyle = item.cardColor
+        ? `border-color: ${hexToRgba(item.cardColor, 0.65)}; background-image: linear-gradient(135deg, ${hexToRgba(item.cardColor, 0.09)} 0%, transparent 45%);`
+        : "";
+
       return `
       <div
         class="card p-3 flex gap-3 cursor-pointer hover:bg-neutral-700/50 animate-fade-in"
-        style="animation-delay: ${Math.min(index, 10) * 30}ms"
+        style="animation-delay: ${Math.min(index, 10) * 30}ms; ${cardColorStyle}"
         onclick="openListing('${escapeAttr(item.url)}')"
         title="${escapeAttr(item.title)}"
       >
@@ -330,6 +335,7 @@ function renderSearches() {
           <div class="flex items-center gap-2">
             <p class="text-sm font-medium text-secondary truncate">${escapeHtml(search.name)}</p>
             <span class="badge bg-neutral-700 text-neutral-400 text-xs flex-shrink-0">${escapeHtml(search.site || "US")}</span>
+            ${search.cardColor ? `<span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${escapeAttr(search.cardColor)}"></span>` : ""}
             ${!search.enabled ? '<span class="badge bg-neutral-700 text-neutral-500 text-xs">Paused</span>' : ""}
           </div>
           <p class="text-xs text-neutral-500 mt-0.5 truncate">
@@ -420,6 +426,7 @@ async function openSearchModal(id) {
   closeConditionDropdown();
   clearAspectFilters();
   setModalEnabled(true);
+  setModalCardColor(null);
 
   if (id) {
     const search = searches.find((s) => s.id === id);
@@ -440,6 +447,7 @@ async function openSearchModal(id) {
     updateConditionDisplay();
     loadAspectFiltersFromSaved(search.aspectFilters);
     setModalEnabled(search.enabled !== false);
+    setModalCardColor(search.cardColor || null);
   } else {
     titleEl.textContent = "Add Search";
   }
@@ -463,6 +471,51 @@ function closeSearchModal(event) {
 
 function toggleModalEnabled() {
   setModalEnabled(!modalEnabled);
+}
+
+function setModalCardColor(color) {
+  modalCardColor = color || null;
+  document.querySelectorAll(".color-swatch").forEach((el) => {
+    el.classList.remove("ring-white");
+    el.classList.add("ring-transparent");
+  });
+  const noneBtn = document.getElementById("color-swatch-none");
+  const customLabel = document.getElementById("color-swatch-custom");
+  if (noneBtn) {
+    noneBtn.classList.remove("ring-white");
+    noneBtn.classList.add("ring-transparent");
+  }
+  if (customLabel) {
+    customLabel.classList.remove("ring-white");
+    customLabel.classList.add("ring-transparent");
+  }
+
+  if (!color) {
+    if (noneBtn) {
+      noneBtn.classList.add("ring-white");
+      noneBtn.classList.remove("ring-transparent");
+    }
+  } else {
+    const preset = document.querySelector(`.color-swatch[data-color="${color}"]`);
+    if (preset) {
+      preset.classList.add("ring-white");
+      preset.classList.remove("ring-transparent");
+    } else if (customLabel) {
+      const preview = document.getElementById("color-swatch-custom-preview");
+      if (preview) preview.style.background = color;
+      const input = document.getElementById("modal-card-color-custom");
+      if (input) input.value = color;
+      customLabel.classList.add("ring-white");
+      customLabel.classList.remove("ring-transparent");
+    }
+  }
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function setModalEnabled(value) {
@@ -518,11 +571,23 @@ async function saveSearch() {
           .map((v) => v.trim())
           .filter((v) => v),
       })),
+    cardColor: modalCardColor || null,
     enabled: modalEnabled,
   };
 
   try {
     searches = await window.api.saveSearch(search);
+    // Retroactively update cardColor on any existing feed items from this search
+    if (search.id) {
+      let feedUpdated = false;
+      feedItems.forEach((item) => {
+        if (item.searchId === search.id && item.cardColor !== (search.cardColor || null)) {
+          item.cardColor = search.cardColor || null;
+          feedUpdated = true;
+        }
+      });
+      if (feedUpdated) renderFeed();
+    }
     renderSearches();
     closeSearchModal();
     showToast(`Search "${name}" ${search.id ? "updated" : "added"}`, "success");
