@@ -1,0 +1,41 @@
+{
+  "name": "ebaywatch",
+  "version": "1.0.0",
+  "description": "eBayWatch — eBay listing monitor desktop application",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "npx tailwindcss -i ./src/renderer/styles/input.css -o ./src/renderer/styles/style.css && npx electron .",
+    "dev": "npx electron .",
+    "build:css": "npx tailwindcss -i ./src/renderer/styles/input.css -o ./src/renderer/styles/style.css --minify",
+    "build:win": "npm run build:css && npx electron-builder --win --publish never",
+    "build:all": "npm run build:css && npx electron-builder --publish never"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "fast-xml-parser": "^4.3.6"
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^24.13.3",
+    "tailwindcss": "^3.4.3"
+  },
+  "build": {
+    "appId": "com.ebaywatch.app",
+    "productName": "eBayWatch",
+    "files": [
+      "**/*",
+      "!node_modules/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "portable",
+      "icon": "assets/icon.ico"
+    }
+  }
+}

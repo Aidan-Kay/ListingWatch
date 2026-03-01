@@ -1,0 +1,60 @@
+module.exports = {
+  content: [
+    './src/renderer/index.html',
+    './src/**/*.{js,ts,jsx,tsx,html}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: '#171717',
+        secondary: '#d4d4d4',
+        neutral: {
+          700: '#404040',
+          800: '#262626',
+          900: '#171717',
+        },
+        accent: {
+          500: '#f97316',
+          600: '#ea580c',
+        },
+        success: {
+          500: '#22c55e',
+          600: '#16a34a',
+        },
+        danger: {
+          500: '#ef4444',
+          600: '#dc2626',
+        },
+      },
+      zIndex: {
+        '60': '60',
+        '70': '70',
+        '80': '80',
+        '90': '90',
+      },
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+      },
+      keyframes: {
+        'fade-in': {
+          'from': { opacity: '0', transform: 'translateY(4px)' },
+          'to': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'slide-in': {
+          'from': { opacity: '0', transform: 'translateX(-8px)' },
+          'to': { opacity: '1', transform: 'translateX(0)' },
+        },
+        'toast-in': {
+          'from': { opacity: '0', transform: 'translateY(16px)' },
+          'to': { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'fade-in': 'fade-in 0.2s ease-out',
+        'slide-in': 'slide-in 0.2s ease-out',
+        'toast-in': 'toast-in 0.3s ease-out',
+      },
+    },
+  },
+  plugins: [],
+};
