@@ -6,6 +6,7 @@ let currentPage = "feed";
 let modalEnabled = true;
 let newCount = 0;
 let modalCardColor = null;
+let modalNotify = true;
 let feedZoom = "medium";
 // Category tree state
 let currentCategoryTree = []; // flat array of { id, name, depth, parentId }
@@ -157,9 +158,9 @@ function showToast(message, type = "info") {
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 const FORMAT_LABELS = { "Buy It Now": "BIN", "Best Offer": "Offer" };
 const ZOOM_CONFIG = {
-  small: { minCol: "240px", img: "w-14 h-14", title: "text-xs", price: "text-xs", meta: "text-xs" },
-  medium: { minCol: "320px", img: "w-24 h-24", title: "text-sm", price: "text-sm", meta: "text-xs" },
-  large: { minCol: "440px", img: "w-32 h-32", title: "text-base", price: "text-base", meta: "text-sm" },
+  small: { minCol: "300px", img: "w-24 h-24", title: "text-xs", price: "text-xs", meta: "text-xs" },
+  medium: { minCol: "380px", img: "w-28 h-28", title: "text-sm", price: "text-sm", meta: "text-xs" },
+  large: { minCol: "480px", img: "w-32 h-32", title: "text-base", price: "text-base", meta: "text-sm" },
 };
 
 function renderFeed() {
@@ -197,30 +198,33 @@ function renderFeed() {
       const zc = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
       const dateForAge = item.listingDate || item.foundAt;
       const isNew = Date.now() - new Date(item.foundAt).getTime() < 60000;
+      const isEnded = item.listingEndDate && new Date(item.listingEndDate).getTime() < Date.now();
       const formats = item.buyingFormats || [];
       const formatBadges = formats
         .map((f) => {
           const cls = f === "Auction" ? "badge-auction" : "badge-default";
-          return `<span class="badge ${cls} mr-1">${escapeHtml(FORMAT_LABELS[f] || f)}</span>`;
+          return `<span class="badge ${cls} ${zc.meta}">${escapeHtml(FORMAT_LABELS[f] || f)}</span>`;
         })
         .join("");
 
       const cardColorStyle = item.cardColor
         ? `border-color: ${hexToRgba(item.cardColor, 0.75)}; background-image: linear-gradient(135deg, ${hexToRgba(item.cardColor, 0.22)} 0%, ${hexToRgba(item.cardColor, 0.06)} 40%, transparent 65%);`
         : "";
+      const endedStyle = isEnded ? "opacity: 0.5;" : "";
 
       return `
       <div
         class="card p-3 flex gap-3 cursor-pointer hover:bg-neutral-700/50 animate-fade-in"
-        style="animation-delay: ${Math.min(index, 10) * 30}ms; ${cardColorStyle}"
+        style="animation-delay: ${Math.min(index, 10) * 30}ms; ${cardColorStyle}${endedStyle}"
+        data-end-date="${escapeAttr(item.listingEndDate || "")}"
         onclick="openListing('${escapeAttr(item.url)}')"
         title="${escapeAttr(item.title)}"
       >
-        <!-- Thumbnail -->
+        <!-- Thumbnail: full card height, square crop -->
         <div class="${zc.img} flex-shrink-0 rounded-md overflow-hidden bg-neutral-700 relative group">
           ${
             item.image
-              ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
+              ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover object-center" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
                 <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.image)}')"
                 ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>`
               : `<div class="w-full h-full flex items-center justify-center">
@@ -232,34 +236,40 @@ function renderFeed() {
         </div>
 
         <!-- Info -->
-        <div class="flex-1 min-w-0 flex flex-col gap-1">
-          <!-- Row 1: Title + NEW badge -->
-          <div class="flex items-start justify-between gap-2">
-            <p class="${zc.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
-            <span class="badge badge-accent flex-shrink-0 feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
+        <div class="flex-1 min-w-0 flex flex-col">
+          <!-- Top group: title + condition (anchored to top) -->
+          <div class="flex flex-col gap-0.5">
+            <!-- Row 1: Title + NEW/ENDED badges -->
+            <div class="flex items-start justify-between gap-2">
+              <p class="${zc.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
+              <div class="flex flex-col items-end gap-0.5 flex-shrink-0">
+                <span class="badge badge-accent feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
+                ${isEnded ? `<span class="badge bg-neutral-700 text-neutral-500 ${zc.meta}">ENDED</span>` : ""}
+              </div>
+            </div>
+            <!-- Row 2: Condition -->
+            ${item.condition ? `<p class="${zc.meta} text-neutral-400 truncate">${escapeHtml(item.condition)}</p>` : ""}
           </div>
-          <!-- Row 2: Price / shipping (left) · Condition (right) -->
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 min-w-0">
+          <!-- Bottom group: price, age, search/badges (pushed to bottom) -->
+          <div class="flex flex-col gap-0.5 mt-auto pt-1">
+            <!-- Row 3: Price + P&P -->
+            <div class="flex items-center gap-2">
               ${
                 item.price
-                  ? `<span class="${zc.price} font-semibold text-accent-500 flex-shrink-0">${escapeHtml(item.price)}</span>`
-                  : `<span class="${zc.meta} text-neutral-500 flex-shrink-0">No price</span>`
+                  ? `<span class="${zc.price} font-semibold text-accent-500">${escapeHtml(item.price)}</span>`
+                  : `<span class="${zc.meta} text-neutral-500">No price</span>`
               }
-              ${item.shipping ? `<span class="${zc.meta} text-neutral-500 truncate">${escapeHtml(item.shipping)}</span>` : ""}
+              ${item.shipping ? `<span class="${zc.meta} text-neutral-500">${escapeHtml(item.shipping)}</span>` : ""}
             </div>
-            ${item.condition ? `<span class="${zc.meta} text-neutral-400 flex-shrink-0 truncate max-w-[45%] text-right">${escapeHtml(item.condition)}</span>` : ""}
-          </div>
-          <!-- Row 3: Age · search name (left) · badges (right) -->
-          <div class="flex items-center justify-between gap-2 mt-auto pt-0.5">
-            <div class="flex items-center gap-1.5 min-w-0 ${zc.meta} text-neutral-500">
-              <span class="flex-shrink-0 feed-age" data-date="${escapeAttr(dateForAge)}">${timeAgo(dateForAge)}</span>
-              <span class="text-neutral-600 flex-shrink-0">·</span>
-              <span class="truncate">${escapeHtml(item.searchName)}</span>
-            </div>
-            <div class="flex items-center gap-1 flex-shrink-0 ml-1">
-              ${formatBadges}
-              <span class="badge bg-neutral-700 text-neutral-400 ${zc.meta}">${escapeHtml(item.site || "")}</span>
+            <!-- Row 4: Listing Age -->
+            <span class="${zc.meta} text-neutral-500 feed-age" data-date="${escapeAttr(dateForAge)}">Listed ${timeAgo(dateForAge)}</span>
+            <!-- Row 5: Search name + Badges -->
+            <div class="flex items-center justify-between gap-2">
+              <span class="truncate ${zc.meta} text-neutral-500">${escapeHtml(item.searchName)}</span>
+              <div class="flex items-center gap-1 flex-shrink-0">
+                ${formatBadges}
+                <span class="badge bg-neutral-700 text-neutral-400 ${zc.meta}">${escapeHtml(item.site || "")}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -481,6 +491,7 @@ async function openSearchModal(id) {
   closeConditionDropdown();
   clearAspectFilters();
   setModalEnabled(true);
+  setModalNotify(true);
   setModalCardColor(null);
 
   if (id) {
@@ -502,6 +513,7 @@ async function openSearchModal(id) {
     updateConditionDisplay();
     loadAspectFiltersFromSaved(search.aspectFilters);
     setModalEnabled(search.enabled !== false);
+    setModalNotify(search.notify !== false);
     setModalCardColor(search.cardColor || null);
   } else {
     titleEl.textContent = "Add Search";
@@ -639,6 +651,28 @@ function setModalEnabled(value) {
   }
 }
 
+function toggleModalNotify() {
+  setModalNotify(!modalNotify);
+}
+
+function setModalNotify(value) {
+  modalNotify = value;
+  const toggle = document.getElementById("modal-notify-toggle");
+  const knob = document.getElementById("modal-notify-knob");
+  if (!toggle || !knob) return;
+  if (modalNotify) {
+    toggle.classList.remove("bg-neutral-700");
+    toggle.classList.add("bg-accent-500");
+    knob.classList.remove("translate-x-1");
+    knob.classList.add("translate-x-4");
+  } else {
+    toggle.classList.add("bg-neutral-700");
+    toggle.classList.remove("bg-accent-500");
+    knob.classList.add("translate-x-1");
+    knob.classList.remove("translate-x-4");
+  }
+}
+
 async function saveSearch() {
   const name = document.getElementById("modal-name").value.trim();
   if (!name) {
@@ -678,6 +712,7 @@ async function saveSearch() {
     cardColor: modalCardColor || null,
     minInterval: parseInt(document.getElementById("modal-min-interval").value) || null,
     maxInterval: parseInt(document.getElementById("modal-max-interval").value) || null,
+    notify: modalNotify,
     enabled: modalEnabled,
   };
 
@@ -854,7 +889,7 @@ function timeAgo(isoString) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-// Tick every 5s to update visible timestamps and expire NEW badges without re-rendering the feed
+// Tick every 5s to update visible timestamps, expire NEW badges, and mark ended listings
 setInterval(() => {
   document.querySelectorAll(".feed-age[data-date]").forEach((el) => {
     el.textContent = timeAgo(el.dataset.date);
@@ -865,6 +900,12 @@ setInterval(() => {
   });
   document.querySelectorAll(".search-last-checked[data-date]").forEach((el) => {
     if (el.dataset.date) el.textContent = timeAgo(el.dataset.date);
+  });
+  document.querySelectorAll("[data-end-date]").forEach((el) => {
+    const endDate = el.dataset.endDate;
+    if (endDate && new Date(endDate).getTime() < Date.now()) {
+      el.style.opacity = "0.5";
+    }
   });
 }, 5000);
 

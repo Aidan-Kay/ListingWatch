@@ -342,6 +342,7 @@ function parseApiResults(data, search) {
       url: itemUrl,
       buyingFormats,
       listingDate: item.itemCreationDate || null,
+      listingEndDate: item.itemEndDate || null,
       foundAt: new Date().toISOString(),
     };
   });
@@ -351,29 +352,30 @@ function parseApiResults(data, search) {
 function sendNotifications(items) {
   if (!Notification.isSupported()) return;
 
-  // Filter by allowed formats (default: all)
+  // Filter by global allowed formats and per-search notify flag
   const allowed = settings.notifyFormats && settings.notifyFormats.length > 0 ? settings.notifyFormats : ["Auction", "Buy It Now"];
 
   const filtered = items.filter((item) => {
+    const search = searches.find((s) => s.id === item.searchId);
+    if (search && search.notify === false) return false;
     const formats = item.buyingFormats || [];
     return formats.some((f) => allowed.includes(f));
   });
 
   if (filtered.length === 0) return;
 
-  // Group into a single notification if many new items, individual if just a few
   if (filtered.length === 1) {
     const item = filtered[0];
     const notif = new Notification({
-      title: `New listing — ${item.searchName}`,
-      body: `${item.title}${item.price ? `  ·  ${item.price}` : ""}`,
+      title: "eBayWatch",
+      body: `${item.searchName}: ${item.title}${item.price ? `  ·  ${item.price}` : ""}`,
       silent: false,
     });
     notif.on("click", () => shell.openExternal(item.url));
     notif.show();
   } else {
     const notif = new Notification({
-      title: `${filtered.length} new listings`,
+      title: "eBayWatch",
       body:
         filtered
           .map((i) => `${i.title}${i.price ? ` · ${i.price}` : ""}`)

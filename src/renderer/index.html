@@ -670,6 +670,24 @@
             </div>
           </div>
 
+          <!-- Notifications toggle -->
+          <div class="flex items-center justify-between py-2">
+            <div>
+              <p class="text-sm font-medium text-secondary">Notifications</p>
+              <p class="text-xs text-neutral-500">Show a Windows notification for new listings</p>
+            </div>
+            <button
+              id="modal-notify-toggle"
+              onclick="toggleModalNotify()"
+              class="relative inline-flex h-5 w-9 items-center rounded-full bg-accent-500 transition-colors"
+            >
+              <span
+                id="modal-notify-knob"
+                class="inline-block h-3.5 w-3.5 translate-x-4 transform rounded-full bg-white shadow transition-transform"
+              ></span>
+            </button>
+          </div>
+
           <!-- Enabled toggle -->
           <div class="flex items-center justify-between py-2">
             <div>
