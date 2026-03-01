@@ -6,6 +6,7 @@ let currentPage = "feed";
 let modalEnabled = true;
 let newCount = 0;
 let modalCardColor = null;
+let feedZoom = "medium";
 // Category tree state
 let currentCategoryTree = []; // flat array of { id, name, depth, parentId }
 
@@ -78,6 +79,9 @@ const PAGE_META = {
     subtitle: "New listings from all active searches",
     actions: () => `
       <span id="feed-count" class="text-xs text-neutral-500">${feedItems.length ? `${feedItems.length} listing${feedItems.length !== 1 ? "s" : ""}` : ""}</span>
+      <div class="flex items-center gap-0.5 p-0.5 bg-neutral-800 rounded-md border border-neutral-700">
+        ${["small", "medium", "large"].map((z) => `<button onclick="setFeedZoom('${z}')" title="${z.charAt(0).toUpperCase() + z.slice(1)} cards" class="px-2.5 py-0.5 rounded text-xs transition-colors ${feedZoom === z ? "bg-neutral-700 text-secondary" : "text-neutral-500 hover:text-secondary"}">${z === "small" ? "S" : z === "medium" ? "M" : "L"}</button>`).join("")}
+      </div>
       <button onclick="clearFeed()" class="btn-ghost text-xs">Clear Feed</button>
     `,
   },
@@ -152,6 +156,11 @@ function showToast(message, type = "info") {
 
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 const FORMAT_LABELS = { "Buy It Now": "BIN", "Best Offer": "Offer" };
+const ZOOM_CONFIG = {
+  small: { minCol: "240px", img: "w-14 h-14", title: "text-xs", price: "text-xs", meta: "text-xs" },
+  medium: { minCol: "320px", img: "w-24 h-24", title: "text-sm", price: "text-sm", meta: "text-xs" },
+  large: { minCol: "440px", img: "w-32 h-32", title: "text-base", price: "text-base", meta: "text-sm" },
+};
 
 function renderFeed() {
   const empty = document.getElementById("feed-empty");
@@ -163,11 +172,18 @@ function renderFeed() {
   if (feedItems.length === 0) {
     empty.classList.remove("hidden");
     grid.classList.add("hidden");
+    const subtitle = document.getElementById("feed-empty-subtitle");
+    if (subtitle) {
+      const hasActive = searches.some((s) => s.enabled);
+      subtitle.textContent = hasActive ? "Monitoring for new listings\u2026" : "Add searches to start monitoring eBay listings";
+    }
     return;
   }
 
   empty.classList.add("hidden");
   grid.classList.remove("hidden");
+  const zc = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
+  grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zc.minCol}, 1fr))`;
 
   // Sort feed by listing date descending (newest listing first)
   const sorted = [...feedItems].sort((a, b) => {
@@ -178,6 +194,7 @@ function renderFeed() {
 
   grid.innerHTML = sorted
     .map((item, index) => {
+      const zc = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
       const dateForAge = item.listingDate || item.foundAt;
       const isNew = Date.now() - new Date(item.foundAt).getTime() < 60000;
       const formats = item.buyingFormats || [];
@@ -200,11 +217,11 @@ function renderFeed() {
         title="${escapeAttr(item.title)}"
       >
         <!-- Thumbnail -->
-        <div class="w-20 h-20 flex-shrink-0 rounded-md overflow-hidden bg-neutral-700 relative group">
+        <div class="${zc.img} flex-shrink-0 rounded-md overflow-hidden bg-neutral-700 relative group">
           ${
             item.image
               ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
-                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center cursor-zoom-in" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.image)}')"
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.image)}')"
                 ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>`
               : `<div class="w-full h-full flex items-center justify-center">
                 <svg class="w-6 h-6 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -218,7 +235,7 @@ function renderFeed() {
         <div class="flex-1 min-w-0 flex flex-col gap-1">
           <!-- Row 1: Title + NEW badge -->
           <div class="flex items-start justify-between gap-2">
-            <p class="text-sm font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
+            <p class="${zc.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
             <span class="badge badge-accent flex-shrink-0 feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
           </div>
           <!-- Row 2: Price / shipping (left) · Condition (right) -->
@@ -226,23 +243,23 @@ function renderFeed() {
             <div class="flex items-center gap-2 min-w-0">
               ${
                 item.price
-                  ? `<span class="text-sm font-semibold text-accent-500 flex-shrink-0">${escapeHtml(item.price)}</span>`
-                  : `<span class="text-xs text-neutral-500 flex-shrink-0">No price</span>`
+                  ? `<span class="${zc.price} font-semibold text-accent-500 flex-shrink-0">${escapeHtml(item.price)}</span>`
+                  : `<span class="${zc.meta} text-neutral-500 flex-shrink-0">No price</span>`
               }
-              ${item.shipping ? `<span class="text-xs text-neutral-500 truncate">${escapeHtml(item.shipping)}</span>` : ""}
+              ${item.shipping ? `<span class="${zc.meta} text-neutral-500 truncate">${escapeHtml(item.shipping)}</span>` : ""}
             </div>
-            ${item.condition ? `<span class="text-xs text-neutral-400 flex-shrink-0 truncate max-w-[45%] text-right">${escapeHtml(item.condition)}</span>` : ""}
+            ${item.condition ? `<span class="${zc.meta} text-neutral-400 flex-shrink-0 truncate max-w-[45%] text-right">${escapeHtml(item.condition)}</span>` : ""}
           </div>
           <!-- Row 3: Age · search name (left) · badges (right) -->
           <div class="flex items-center justify-between gap-2 mt-auto pt-0.5">
-            <div class="flex items-center gap-1.5 min-w-0 text-xs text-neutral-500">
+            <div class="flex items-center gap-1.5 min-w-0 ${zc.meta} text-neutral-500">
               <span class="flex-shrink-0 feed-age" data-date="${escapeAttr(dateForAge)}">${timeAgo(dateForAge)}</span>
               <span class="text-neutral-600 flex-shrink-0">·</span>
               <span class="truncate">${escapeHtml(item.searchName)}</span>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0 ml-1">
               ${formatBadges}
-              <span class="badge bg-neutral-700 text-neutral-400 text-xs">${escapeHtml(item.site || "")}</span>
+              <span class="badge bg-neutral-700 text-neutral-400 ${zc.meta}">${escapeHtml(item.site || "")}</span>
             </div>
           </div>
         </div>
@@ -294,6 +311,19 @@ async function clearFeed() {
   updateFeedBadge();
   renderFeed();
   showToast("Feed cleared", "info");
+}
+
+function setFeedZoom(zoom) {
+  feedZoom = zoom;
+  renderFeed();
+  // Re-render header actions to update active button state
+  if (currentPage === "feed") {
+    document.getElementById("header-actions").innerHTML = PAGE_META.feed.actions();
+  }
+  // Auto-save preference
+  window.api.saveSettings({ ...settings, feedZoom: zoom }).then((s) => {
+    settings = s;
+  });
 }
 
 function openListing(url) {
@@ -357,7 +387,7 @@ function renderSearches() {
         search.minPrice || search.maxPrice ? ` · ${sym}${search.minPrice || "0"} – ${search.maxPrice ? sym + search.maxPrice : "∞"}` : "";
 
       return `
-      <div class="card p-4 flex items-center gap-4">
+      <div class="card p-4 flex items-center gap-4 cursor-pointer" onclick="openSearchModal('${escapeAttr(search.id)}')">
         <!-- Status dot -->
         <div class="flex-shrink-0">
           <div class="w-2.5 h-2.5 rounded-full ${search.enabled ? (hasError ? "bg-danger-500" : "bg-success-500") : "bg-neutral-600"}"></div>
@@ -377,12 +407,12 @@ function renderSearches() {
             ${search.format && search.format !== "all" ? ` · ${formatLabel(search.format)}` : ""}
           </p>
           <p class="text-xs mt-0.5 ${hasError ? "text-danger-500" : "text-neutral-600"}">
-            ${hasError ? `Error: ${escapeHtml(search.error)}` : `Last checked: ${lastFetched}`}
+            ${hasError ? `Error: ${escapeHtml(search.error)}` : `Last checked: <span class="search-last-checked" data-date="${escapeAttr(search.lastFetched || "")}">${lastFetched}</span>`}
           </p>
         </div>
 
         <!-- Actions -->
-        <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="flex items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()">
           <!-- Toggle -->
           <button
             onclick="toggleSearch('${escapeAttr(search.id)}', ${!search.enabled})"
@@ -390,16 +420,6 @@ function renderSearches() {
             class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${search.enabled ? "bg-accent-500" : "bg-neutral-700"}"
           >
             <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${search.enabled ? "translate-x-4" : "translate-x-1"}"></span>
-          </button>
-
-          <button
-            onclick="openSearchModal('${escapeAttr(search.id)}')"
-            title="Edit search"
-            class="btn-ghost px-2 py-1.5"
-          >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
-            </svg>
           </button>
 
           <button
@@ -553,6 +573,55 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function darkenHex(hex, factor = 0.82) {
+  const r = Math.round(parseInt(hex.slice(1, 3), 16) * factor);
+  const g = Math.round(parseInt(hex.slice(3, 5), 16) * factor);
+  const b = Math.round(parseInt(hex.slice(5, 7), 16) * factor);
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+function applyAccentColor(color) {
+  if (!color) color = "#f97316";
+  const dark = darkenHex(color);
+  const rgba20 = hexToRgba(color, 0.2);
+  let style = document.getElementById("accent-override");
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "accent-override";
+    document.head.appendChild(style);
+  }
+  style.textContent = `
+    .btn-primary { background-color: ${color} !important; }
+    .btn-primary:hover { background-color: ${dark} !important; }
+    .nav-item.active { color: ${color} !important; border-color: ${color} !important; }
+    .text-accent-500 { color: ${color} !important; }
+    .bg-accent-500 { background-color: ${color} !important; }
+    .border-accent-500 { border-color: ${color} !important; }
+    .focus\\:border-accent-500:focus { border-color: ${color} !important; }
+    .badge-accent { background-color: ${rgba20} !important; color: ${color} !important; }
+    .condition-checkbox { accent-color: ${color} !important; }
+    .text-accent-600 { color: ${dark} !important; }
+    .hover\\:text-accent-400:hover, .hover\\:text-accent-600:hover { color: ${dark} !important; }
+    a.text-accent-500 { color: ${color} !important; }
+  `;
+}
+
+function selectAccentColor(color) {
+  const input = document.getElementById("setting-accent-color");
+  if (input) input.value = color;
+  document.querySelectorAll(".accent-swatch").forEach((el) => {
+    const isSelected = el.dataset.color === color;
+    el.classList.toggle("ring-white", isSelected);
+    el.classList.toggle("ring-transparent", !isSelected);
+  });
+  // Update custom swatch preview colour
+  const customPreview = document.getElementById("accent-swatch-custom-preview");
+  if (customPreview) customPreview.style.background = color;
+  const customInput = document.getElementById("accent-color-custom-input");
+  if (customInput) customInput.value = color;
+  applyAccentColor(color);
+}
+
 function setModalEnabled(value) {
   modalEnabled = value;
   const toggle = document.getElementById("modal-enabled-toggle");
@@ -660,6 +729,10 @@ function applySettings() {
   const formats = settings.notifyFormats || ["Auction", "Buy It Now"];
   document.getElementById("notif-auction").checked = formats.includes("Auction");
   document.getElementById("notif-buy-it-now").checked = formats.includes("Buy It Now");
+
+  // Appearance
+  feedZoom = settings.feedZoom || "medium";
+  selectAccentColor(settings.accentColor || "#f97316");
 }
 
 async function saveSettings() {
@@ -685,7 +758,10 @@ async function saveSettings() {
   if (document.getElementById("notif-auction").checked) notifyFormats.push("Auction");
   if (document.getElementById("notif-buy-it-now").checked) notifyFormats.push("Buy It Now");
 
-  settings = await window.api.saveSettings({ clientId, clientSecret, minInterval, maxInterval, notifyFormats });
+  const accentColor = document.getElementById("setting-accent-color").value || "#f97316";
+
+  settings = await window.api.saveSettings({ clientId, clientSecret, minInterval, maxInterval, notifyFormats, accentColor, feedZoom });
+  applyAccentColor(settings.accentColor);
   showToast("Settings saved", "success");
 }
 
@@ -778,7 +854,7 @@ function timeAgo(isoString) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-// Tick every 15s to update visible timestamps and expire NEW badges without re-rendering the feed
+// Tick every 5s to update visible timestamps and expire NEW badges without re-rendering the feed
 setInterval(() => {
   document.querySelectorAll(".feed-age[data-date]").forEach((el) => {
     el.textContent = timeAgo(el.dataset.date);
@@ -787,7 +863,10 @@ setInterval(() => {
     const age = Date.now() - new Date(el.dataset.foundAt).getTime();
     if (age >= 60000) el.classList.add("hidden");
   });
-}, 15000);
+  document.querySelectorAll(".search-last-checked[data-date]").forEach((el) => {
+    if (el.dataset.date) el.textContent = timeAgo(el.dataset.date);
+  });
+}, 5000);
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {

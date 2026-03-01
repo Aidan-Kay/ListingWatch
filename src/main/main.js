@@ -6,6 +6,7 @@ const fs = require("fs");
 const userDataPath = app.getPath("userData");
 const searchesFile = path.join(userDataPath, "searches.json");
 const settingsFile = path.join(userDataPath, "settings.json");
+const windowStateFile = path.join(userDataPath, "window-state.json");
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let mainWindow = null;
@@ -409,16 +410,7 @@ async function fetchSearch(search) {
 
     if (isInit) {
       initialised[search.id] = true;
-      // Add the 10 most recent listings to the feed on first load
-      const initItems = newItems.slice(0, 10);
-      console.log(`[${search.name}] Initialised — adding ${initItems.length} of ${items.length} listings to feed`);
-      if (initItems.length > 0) {
-        feed.unshift(...initItems);
-        if (feed.length > 500) feed = feed.slice(0, 500);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("new-listings", initItems);
-        }
-      }
+      console.log(`[${search.name}] Initialised - ${items.length} listing(s) seen, none added to feed`);
       updateSearchStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
     } else if (newItems.length > 0) {
       console.log(`[${search.name}] Found ${newItems.length} new listing(s)`);
@@ -495,10 +487,34 @@ function startAllSearches() {
 }
 
 // ─── Window ───────────────────────────────────────────────────────────────────
+function loadWindowState() {
+  try {
+    return JSON.parse(fs.readFileSync(windowStateFile, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+let _windowSaveTimer = null;
+function saveWindowState(win) {
+  clearTimeout(_windowSaveTimer);
+  _windowSaveTimer = setTimeout(() => {
+    if (!win || win.isDestroyed() || win.isMinimized() || win.isMaximized()) return;
+    const [x, y] = win.getPosition();
+    const [width, height] = win.getSize();
+    try {
+      fs.writeFileSync(windowStateFile, JSON.stringify({ x, y, width, height }), "utf8");
+    } catch {}
+  }, 500);
+}
+
 function createWindow() {
+  const saved = loadWindowState();
   mainWindow = new BrowserWindow({
-    width: 1500,
-    height: 1100,
+    width: saved?.width ?? 1500,
+    height: saved?.height ?? 1100,
+    x: saved?.x,
+    y: saved?.y,
     minWidth: 800,
     minHeight: 600,
     backgroundColor: "#171717",
@@ -517,6 +533,9 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
+
+  mainWindow.on("resize", () => saveWindowState(mainWindow));
+  mainWindow.on("move", () => saveWindowState(mainWindow));
 
   mainWindow.on("closed", () => {
     mainWindow = null;
