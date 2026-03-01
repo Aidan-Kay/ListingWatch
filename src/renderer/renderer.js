@@ -151,6 +151,8 @@ function showToast(message, type = "info") {
 }
 
 // ─── Feed ─────────────────────────────────────────────────────────────────────
+const FORMAT_LABELS = { "Buy It Now": "BIN", "Best Offer": "Offer" };
+
 function renderFeed() {
   const empty = document.getElementById("feed-empty");
   const grid = document.getElementById("feed-grid");
@@ -178,8 +180,7 @@ function renderFeed() {
     .map((item, index) => {
       const dateForAge = item.listingDate || item.foundAt;
       const isNew = Date.now() - new Date(item.foundAt).getTime() < 60000;
-      const formats = Array.isArray(item.buyingFormats) ? item.buyingFormats : item.buyingFormat ? [item.buyingFormat] : [];
-      const FORMAT_LABELS = { "Buy It Now": "BIN", "Best Offer": "Offer" };
+      const formats = item.buyingFormats || [];
       const formatBadges = formats
         .map((f) => {
           const cls = f === "Auction" ? "badge-auction" : "badge-default";
@@ -305,7 +306,9 @@ function openImagePopup(thumbUrl) {
   // Swap thumbnail size suffix for a larger version
   const fullUrl = thumbUrl.replace(/s-l\d+/, "s-l1600");
   img.src = fullUrl;
-  img.onerror = () => { img.src = thumbUrl; }; // fall back to thumb if full-res 404s
+  img.onerror = () => {
+    img.src = thumbUrl;
+  }; // fall back to thumb if full-res 404s
   lightbox.classList.remove("hidden");
   lightbox.classList.add("flex");
 }
@@ -471,9 +474,7 @@ async function openSearchModal(id) {
     document.getElementById("modal-category").value = search.category || "";
     document.getElementById("modal-min-price").value = search.minPrice || "";
     document.getElementById("modal-max-price").value = search.maxPrice || "";
-    // Location: map legacy 'UK' -> 'GB'
-    const loc = search.itemLocation ? { UK: "GB" }[search.itemLocation.toUpperCase()] || search.itemLocation.toUpperCase() : "";
-    document.getElementById("modal-location").value = loc;
+    document.getElementById("modal-location").value = search.itemLocation ? search.itemLocation.toUpperCase() : "";
     document.getElementById("modal-format").value = search.format || "all";
     document.getElementById("modal-min-interval").value = search.minInterval || "";
     document.getElementById("modal-max-interval").value = search.maxInterval || "";
@@ -615,10 +616,11 @@ async function saveSearch() {
     searches = await window.api.saveSearch(search);
     // Retroactively update cardColor on any existing feed items from this search
     if (search.id) {
+      const newColor = search.cardColor || null;
       let feedUpdated = false;
       feedItems.forEach((item) => {
-        if (item.searchId === search.id && item.cardColor !== (search.cardColor || null)) {
-          item.cardColor = search.cardColor || null;
+        if (item.searchId === search.id && item.cardColor !== newColor) {
+          item.cardColor = newColor;
           feedUpdated = true;
         }
       });
@@ -808,7 +810,6 @@ function formatLabel(format) {
   const labels = {
     buy_now: "Buy It Now",
     auction: "Auction",
-    best_offer: "Best Offer",
     all: "All Listings",
   };
   return labels[format] || format;

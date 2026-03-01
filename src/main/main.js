@@ -204,33 +204,10 @@ async function loadCategoryTree(site) {
 }
 
 // ─── Taskbar Badge ────────────────────────────────────────────────────────────
-function createBadgeImage() {
-  const size = 16;
-  const buf = Buffer.alloc(size * size * 4, 0);
-  const cx = 7.5,
-    cy = 7.5,
-    r = 7;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = x - cx,
-        dy = y - cy;
-      if (dx * dx + dy * dy <= r * r) {
-        const i = (y * size + x) * 4;
-        buf[i] = 239;
-        buf[i + 1] = 68;
-        buf[i + 2] = 68;
-        buf[i + 3] = 255;
-      }
-    }
-  }
-  return nativeImage.createFromBuffer(buf, { width: size, height: size });
-}
-
 function updateTaskbarBadge(count, dataUrl) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (count > 0) {
-    const img = dataUrl ? nativeImage.createFromDataURL(dataUrl) : createBadgeImage();
-    mainWindow.setOverlayIcon(img, `${count} unseen listing${count !== 1 ? "s" : ""}`);
+  if (count > 0 && dataUrl) {
+    mainWindow.setOverlayIcon(nativeImage.createFromDataURL(dataUrl), `${count} unseen listing${count !== 1 ? "s" : ""}`);
   } else {
     mainWindow.setOverlayIcon(null, "");
   }
@@ -267,9 +244,8 @@ async function searchEbay(search) {
   }
   if (search.format === "buy_now") filters.push("buyingOptions:{FIXED_PRICE}");
   else if (search.format === "auction") filters.push("buyingOptions:{AUCTION}");
-  else if (search.format === "best_offer") filters.push("buyingOptions:{BEST_OFFER|FIXED_PRICE}");
   else filters.push("buyingOptions:{AUCTION|FIXED_PRICE|BEST_OFFER}");
-  const locCode = search.itemLocation ? { UK: "GB" }[search.itemLocation.toUpperCase()] || search.itemLocation.toUpperCase() : null;
+  const locCode = search.itemLocation ? search.itemLocation.toUpperCase() : null;
   if (locCode) filters.push(`itemLocationCountry:${locCode}`);
   if (search.conditions && search.conditions.length > 0) {
     filters.push(`conditions:{${search.conditions.join("|")}}`);
