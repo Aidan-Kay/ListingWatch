@@ -203,7 +203,8 @@
               <!-- Refresh Intervals -->
               <div class="card p-5">
                 <h2 class="text-sm font-semibold text-secondary mb-1">Refresh Interval</h2>
-                <p class="text-xs text-neutral-500 mb-4">Each search is refreshed at a random interval between these two values.</p>
+                <p class="text-xs text-neutral-500 mb-3">Each search is refreshed at a random interval between these two values.</p>
+                <p class="text-xs text-neutral-500 mb-4">eBay limits API usage to <strong class="text-neutral-400">5,000 calls per day</strong>. Set your intervals accordingly. <a href="#" onclick="window.api.openExternal('https://developer.ebay.com/develop/get-started/api-call-limits')" class="text-accent-500 hover:text-accent-400">View limits ↗</a></p>
                 <div class="grid grid-cols-2 gap-4">
                   <div>
                     <label class="label">Minimum (seconds)</label>
@@ -454,24 +455,97 @@
             <label class="label">Feed Card Colour</label>
             <p class="text-xs text-neutral-500 mb-3">Adds a coloured border and gradient to listings from this search in the feed.</p>
             <div class="flex items-center gap-2 flex-wrap">
-              <button type="button" id="color-swatch-none" onclick="setModalCardColor(null)"
+              <button
+                type="button"
+                id="color-swatch-none"
+                onclick="setModalCardColor(null)"
                 class="w-7 h-7 rounded-full border-2 border-neutral-600 bg-neutral-800 flex items-center justify-center ring-2 ring-offset-1 ring-offset-neutral-800 ring-white transition-all"
-                title="No colour">
+                title="No colour"
+              >
                 <svg class="w-3 h-3 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-              <button type="button" data-color="#ef4444" onclick="setModalCardColor('#ef4444')" class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all" style="background:#ef4444" title="Red"></button>
-              <button type="button" data-color="#f97316" onclick="setModalCardColor('#f97316')" class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all" style="background:#f97316" title="Orange"></button>
-              <button type="button" data-color="#eab308" onclick="setModalCardColor('#eab308')" class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all" style="background:#eab308" title="Yellow"></button>
-              <button type="button" data-color="#22c55e" onclick="setModalCardColor('#22c55e')" class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all" style="background:#22c55e" title="Green"></button>
-              <button type="button" data-color="#14b8a6" onclick="setModalCardColor('#14b8a6')" class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all" style="background:#14b8a6" title="Teal"></button>
-              <button type="button" data-color="#3b82f6" onclick="setModalCardColor('#3b82f6')" class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all" style="background:#3b82f6" title="Blue"></button>
-              <button type="button" data-color="#8b5cf6" onclick="setModalCardColor('#8b5cf6')" class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all" style="background:#8b5cf6" title="Purple"></button>
-              <button type="button" data-color="#ec4899" onclick="setModalCardColor('#ec4899')" class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all" style="background:#ec4899" title="Pink"></button>
-              <label class="relative w-7 h-7 rounded-full overflow-hidden ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all cursor-pointer" id="color-swatch-custom" title="Custom colour">
-                <input type="color" id="modal-card-color-custom" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer" oninput="setModalCardColor(this.value)" />
-                <div id="color-swatch-custom-preview" class="w-full h-full" style="background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red)"></div>
+              <button
+                type="button"
+                data-color="#ef4444"
+                onclick="setModalCardColor('#ef4444')"
+                class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all"
+                style="background: #ef4444"
+                title="Red"
+              ></button>
+              <button
+                type="button"
+                data-color="#f97316"
+                onclick="setModalCardColor('#f97316')"
+                class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all"
+                style="background: #f97316"
+                title="Orange"
+              ></button>
+              <button
+                type="button"
+                data-color="#eab308"
+                onclick="setModalCardColor('#eab308')"
+                class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all"
+                style="background: #eab308"
+                title="Yellow"
+              ></button>
+              <button
+                type="button"
+                data-color="#22c55e"
+                onclick="setModalCardColor('#22c55e')"
+                class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all"
+                style="background: #22c55e"
+                title="Green"
+              ></button>
+              <button
+                type="button"
+                data-color="#14b8a6"
+                onclick="setModalCardColor('#14b8a6')"
+                class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all"
+                style="background: #14b8a6"
+                title="Teal"
+              ></button>
+              <button
+                type="button"
+                data-color="#3b82f6"
+                onclick="setModalCardColor('#3b82f6')"
+                class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all"
+                style="background: #3b82f6"
+                title="Blue"
+              ></button>
+              <button
+                type="button"
+                data-color="#8b5cf6"
+                onclick="setModalCardColor('#8b5cf6')"
+                class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all"
+                style="background: #8b5cf6"
+                title="Purple"
+              ></button>
+              <button
+                type="button"
+                data-color="#ec4899"
+                onclick="setModalCardColor('#ec4899')"
+                class="color-swatch w-7 h-7 rounded-full ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all"
+                style="background: #ec4899"
+                title="Pink"
+              ></button>
+              <label
+                class="relative w-7 h-7 rounded-full overflow-hidden ring-2 ring-offset-1 ring-offset-neutral-800 ring-transparent transition-all cursor-pointer"
+                id="color-swatch-custom"
+                title="Custom colour"
+              >
+                <input
+                  type="color"
+                  id="modal-card-color-custom"
+                  class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                  oninput="setModalCardColor(this.value)"
+                />
+                <div
+                  id="color-swatch-custom-preview"
+                  class="w-full h-full"
+                  style="background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red)"
+                ></div>
               </label>
             </div>
           </div>

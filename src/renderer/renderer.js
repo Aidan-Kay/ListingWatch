@@ -179,10 +179,11 @@ function renderFeed() {
       const dateForAge = item.listingDate || item.foundAt;
       const isNew = Date.now() - new Date(item.foundAt).getTime() < 60000;
       const formats = Array.isArray(item.buyingFormats) ? item.buyingFormats : item.buyingFormat ? [item.buyingFormat] : [];
+      const FORMAT_LABELS = { "Buy It Now": "BIN", "Best Offer": "Offer" };
       const formatBadges = formats
         .map((f) => {
           const cls = f === "Auction" ? "badge-auction" : "badge-default";
-          return `<span class="badge ${cls} mr-1">${escapeHtml(f)}</span>`;
+          return `<span class="badge ${cls} mr-1">${escapeHtml(FORMAT_LABELS[f] || f)}</span>`;
         })
         .join("");
 
@@ -214,15 +215,18 @@ function renderFeed() {
         <div class="flex-1 min-w-0 flex flex-col">
           <div class="flex items-start justify-between gap-2 flex-1">
             <p class="text-sm font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
-            ${isNew ? '<span class="badge badge-accent flex-shrink-0">NEW</span>' : ""}
+            <span class="badge badge-accent flex-shrink-0 feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
           </div>
           <div class="flex items-center justify-between mt-1.5">
-            ${
-              item.price
-                ? `<span class="text-sm font-semibold text-accent-500">${escapeHtml(item.price)}</span>`
-                : `<span class="text-xs text-neutral-500">No price</span>`
-            }
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-2 min-w-0">
+              ${
+                item.price
+                  ? `<span class="text-sm font-semibold text-accent-500 flex-shrink-0">${escapeHtml(item.price)}</span>`
+                  : `<span class="text-xs text-neutral-500 flex-shrink-0">No price</span>`
+              }
+              ${item.shipping ? `<span class="text-xs text-neutral-500 truncate">${escapeHtml(item.shipping)}</span>` : ""}
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
               ${formatBadges}
               <span class="badge bg-neutral-700 text-neutral-400 text-xs">${escapeHtml(item.site || "")}</span>
             </div>
@@ -230,7 +234,7 @@ function renderFeed() {
           <div class="flex items-center gap-2 mt-1">
             <span class="text-xs text-neutral-500 truncate">${escapeHtml(item.searchName)}</span>
             <span class="text-neutral-600">·</span>
-            <span class="text-xs text-neutral-600 flex-shrink-0 feed-age" data-date="${escapeAttr(dateForAge)}">${timeAgo(dateForAge)}</span>
+            <span class="text-xs text-neutral-500 flex-shrink-0 feed-age" data-date="${escapeAttr(dateForAge)}">${timeAgo(dateForAge)}</span>
           </div>
         </div>
       </div>
@@ -740,12 +744,16 @@ function timeAgo(isoString) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-// Tick every 30s to update all visible timestamps without re-rendering the feed
+// Tick every 15s to update visible timestamps and expire NEW badges without re-rendering the feed
 setInterval(() => {
   document.querySelectorAll(".feed-age[data-date]").forEach((el) => {
     el.textContent = timeAgo(el.dataset.date);
   });
-}, 30000);
+  document.querySelectorAll(".feed-new-badge[data-found-at]").forEach((el) => {
+    const age = Date.now() - new Date(el.dataset.foundAt).getTime();
+    if (age >= 60000) el.classList.add("hidden");
+  });
+}, 15000);
 
 function escapeHtml(str) {
   if (!str) return "";

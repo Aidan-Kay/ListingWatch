@@ -338,6 +338,18 @@ function parseApiResults(data, search) {
 
     const itemUrl = item.itemWebUrl || `${siteBase}/itm/${numericId}`;
 
+    // Shipping cost
+    let shipping = null;
+    if (Array.isArray(item.shippingOptions) && item.shippingOptions.length > 0) {
+      const opt = item.shippingOptions[0];
+      if (opt.shippingCost) {
+        const sc = opt.shippingCost;
+        const shipSym = CURRENCY_SYMBOLS[sc.currency] || sc.currency + " ";
+        const val = parseFloat(sc.value);
+        shipping = val === 0 ? "Free P&P" : `+${shipSym}${val.toFixed(2)} P&P`;
+      }
+    }
+
     return {
       id: `${search.id}_${numericId}`,
       itemId: numericId,
@@ -347,6 +359,7 @@ function parseApiResults(data, search) {
       site: search.site,
       title: item.title,
       price,
+      shipping,
       image,
       url: itemUrl,
       buyingFormats,
