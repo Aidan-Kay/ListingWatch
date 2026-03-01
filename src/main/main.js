@@ -360,6 +360,7 @@ function parseApiResults(data, search) {
       title: item.title,
       price,
       shipping,
+      condition: item.condition || null,
       image,
       url: itemUrl,
       buyingFormats,
@@ -408,9 +409,11 @@ function sendNotifications(items) {
 }
 
 // ─── Polling ──────────────────────────────────────────────────────────────────
-function randomInterval() {
-  const min = (settings.minInterval || 30) * 1000;
-  const max = (settings.maxInterval || 120) * 1000;
+function randomInterval(search) {
+  const globalMin = (settings.minInterval || 30) * 1000;
+  const globalMax = (settings.maxInterval || 120) * 1000;
+  const min = search && search.minInterval ? search.minInterval * 1000 : globalMin;
+  const max = search && search.maxInterval ? search.maxInterval * 1000 : globalMax;
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
@@ -476,13 +479,14 @@ function scheduleSearch(search) {
   fetchSearch(search).then(() => {
     // Then schedule repeating fetches
     function scheduleNext() {
-      if (!searches.find((s) => s.id === search.id && s.enabled)) return;
-      const delay = randomInterval();
-      console.log(`[${search.name}] Next fetch in ${Math.round(delay / 1000)}s`);
+      const current = searches.find((s) => s.id === search.id);
+      if (!current || !current.enabled) return;
+      const delay = randomInterval(current);
+      console.log(`[${current.name}] Next fetch in ${Math.round(delay / 1000)}s`);
       timers[search.id] = setTimeout(async () => {
-        const current = searches.find((s) => s.id === search.id);
-        if (current && current.enabled) {
-          await fetchSearch(current);
+        const latest = searches.find((s) => s.id === search.id);
+        if (latest && latest.enabled) {
+          await fetchSearch(latest);
           scheduleNext();
         }
       }, delay);

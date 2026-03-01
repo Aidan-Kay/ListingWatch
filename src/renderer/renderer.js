@@ -199,10 +199,12 @@ function renderFeed() {
         title="${escapeAttr(item.title)}"
       >
         <!-- Thumbnail -->
-        <div class="w-20 h-20 flex-shrink-0 rounded-md overflow-hidden bg-neutral-700">
+        <div class="w-20 h-20 flex-shrink-0 rounded-md overflow-hidden bg-neutral-700 relative group">
           ${
             item.image
-              ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />`
+              ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center cursor-zoom-in" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.image)}')"
+                ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>`
               : `<div class="w-full h-full flex items-center justify-center">
                 <svg class="w-6 h-6 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18"/>
@@ -212,12 +214,14 @@ function renderFeed() {
         </div>
 
         <!-- Info -->
-        <div class="flex-1 min-w-0 flex flex-col">
-          <div class="flex items-start justify-between gap-2 flex-1">
+        <div class="flex-1 min-w-0 flex flex-col gap-1">
+          <!-- Row 1: Title + NEW badge -->
+          <div class="flex items-start justify-between gap-2">
             <p class="text-sm font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
             <span class="badge badge-accent flex-shrink-0 feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
           </div>
-          <div class="flex items-center justify-between mt-1.5">
+          <!-- Row 2: Price / shipping (left) · Condition (right) -->
+          <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               ${
                 item.price
@@ -226,15 +230,19 @@ function renderFeed() {
               }
               ${item.shipping ? `<span class="text-xs text-neutral-500 truncate">${escapeHtml(item.shipping)}</span>` : ""}
             </div>
-            <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
+            ${item.condition ? `<span class="text-xs text-neutral-400 flex-shrink-0 truncate max-w-[45%] text-right">${escapeHtml(item.condition)}</span>` : ""}
+          </div>
+          <!-- Row 3: Age · search name (left) · badges (right) -->
+          <div class="flex items-center justify-between gap-2 mt-auto pt-0.5">
+            <div class="flex items-center gap-1.5 min-w-0 text-xs text-neutral-500">
+              <span class="flex-shrink-0 feed-age" data-date="${escapeAttr(dateForAge)}">${timeAgo(dateForAge)}</span>
+              <span class="text-neutral-600 flex-shrink-0">·</span>
+              <span class="truncate">${escapeHtml(item.searchName)}</span>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0 ml-1">
               ${formatBadges}
               <span class="badge bg-neutral-700 text-neutral-400 text-xs">${escapeHtml(item.site || "")}</span>
             </div>
-          </div>
-          <div class="flex items-center gap-2 mt-1">
-            <span class="text-xs text-neutral-500 truncate">${escapeHtml(item.searchName)}</span>
-            <span class="text-neutral-600">·</span>
-            <span class="text-xs text-neutral-500 flex-shrink-0 feed-age" data-date="${escapeAttr(dateForAge)}">${timeAgo(dateForAge)}</span>
           </div>
         </div>
       </div>
@@ -289,6 +297,24 @@ async function clearFeed() {
 
 function openListing(url) {
   window.api.openExternal(url);
+}
+
+function openImagePopup(thumbUrl) {
+  const lightbox = document.getElementById("image-lightbox");
+  const img = document.getElementById("image-lightbox-img");
+  // Swap thumbnail size suffix for a larger version
+  const fullUrl = thumbUrl.replace(/s-l\d+/, "s-l1600");
+  img.src = fullUrl;
+  img.onerror = () => { img.src = thumbUrl; }; // fall back to thumb if full-res 404s
+  lightbox.classList.remove("hidden");
+  lightbox.classList.add("flex");
+}
+
+function closeImagePopup() {
+  const lightbox = document.getElementById("image-lightbox");
+  lightbox.classList.add("hidden");
+  lightbox.classList.remove("flex");
+  document.getElementById("image-lightbox-img").src = "";
 }
 
 // ─── Searches ─────────────────────────────────────────────────────────────────
@@ -425,6 +451,8 @@ async function openSearchModal(id) {
   document.getElementById("modal-max-price").value = "";
   document.getElementById("modal-location").value = "";
   document.getElementById("modal-format").value = "all";
+  document.getElementById("modal-min-interval").value = "";
+  document.getElementById("modal-max-interval").value = "";
   selectedConditions = [];
   updateConditionDisplay();
   closeConditionDropdown();
@@ -447,6 +475,8 @@ async function openSearchModal(id) {
     const loc = search.itemLocation ? { UK: "GB" }[search.itemLocation.toUpperCase()] || search.itemLocation.toUpperCase() : "";
     document.getElementById("modal-location").value = loc;
     document.getElementById("modal-format").value = search.format || "all";
+    document.getElementById("modal-min-interval").value = search.minInterval || "";
+    document.getElementById("modal-max-interval").value = search.maxInterval || "";
     selectedConditions = Array.isArray(search.conditions) ? [...search.conditions] : [];
     updateConditionDisplay();
     loadAspectFiltersFromSaved(search.aspectFilters);
@@ -576,6 +606,8 @@ async function saveSearch() {
           .filter((v) => v),
       })),
     cardColor: modalCardColor || null,
+    minInterval: parseInt(document.getElementById("modal-min-interval").value) || null,
+    maxInterval: parseInt(document.getElementById("modal-max-interval").value) || null,
     enabled: modalEnabled,
   };
 
@@ -754,6 +786,13 @@ setInterval(() => {
     if (age >= 60000) el.classList.add("hidden");
   });
 }, 15000);
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const lightbox = document.getElementById("image-lightbox");
+    if (lightbox && !lightbox.classList.contains("hidden")) closeImagePopup();
+  }
+});
 
 function escapeHtml(str) {
   if (!str) return "";

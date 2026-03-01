@@ -266,6 +266,23 @@
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-4 right-4 space-y-2 z-90 pointer-events-none"></div>
 
+    <!-- Image Lightbox -->
+    <div id="image-lightbox" class="fixed inset-0 bg-black/85 z-[100] hidden items-center justify-center p-6" onclick="closeImagePopup()">
+      <button class="absolute top-4 right-4 text-white/60 hover:text-white transition-colors" onclick="closeImagePopup()">
+        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <img
+        id="image-lightbox-img"
+        src=""
+        alt=""
+        class="max-w-full max-h-full rounded-lg shadow-2xl object-contain select-none"
+        style="max-height: calc(100vh - 3rem)"
+        onclick="event.stopPropagation()"
+      />
+    </div>
+
     <!-- Search Modal -->
     <div id="search-modal" class="fixed inset-0 bg-black/60 z-80 hidden items-center justify-center" onclick="closeSearchModal(event)">
       <div
@@ -549,6 +566,24 @@
                   style="background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red)"
                 ></div>
               </label>
+            </div>
+          </div>
+
+          <!-- Per-search refresh interval -->
+          <div>
+            <label class="label">Refresh Interval Override</label>
+            <p class="text-xs text-neutral-500 mb-3">
+              Override the global refresh interval for this search. Leave blank to use global settings.
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="label">Min (seconds)</label>
+                <input id="modal-min-interval" type="number" min="10" max="86400" class="input-field" placeholder="Global default" />
+              </div>
+              <div>
+                <label class="label">Max (seconds)</label>
+                <input id="modal-max-interval" type="number" min="10" max="86400" class="input-field" placeholder="Global default" />
+              </div>
             </div>
           </div>
 
