@@ -28,7 +28,7 @@
           </svg>
         </div>
         <div>
-            <div class="text-sm font-semibold text-secondary leading-tight">eBayWatch</div>
+          <div class="text-sm font-semibold text-secondary leading-tight">eBayWatch</div>
         </div>
       </div>
       <!-- Page title + actions -->
@@ -218,6 +218,28 @@
               </div>
 
               <button onclick="saveSettings()" class="btn-primary">Save Settings</button>
+
+              <!-- Data Export / Import -->
+              <div class="card p-5">
+                <h2 class="text-sm font-semibold text-secondary mb-1">Backup &amp; Restore</h2>
+                <p class="text-xs text-neutral-500 mb-4">
+                  Export all your searches and settings to a JSON file, or import a previously saved backup.
+                </p>
+                <div class="flex items-center gap-3">
+                  <button onclick="exportData()" class="btn-secondary text-xs flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    Export Data
+                  </button>
+                  <button onclick="importData()" class="btn-secondary text-xs flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 7.5m0 0L7.5 12m4.5-4.5V21" />
+                    </svg>
+                    Import Data
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

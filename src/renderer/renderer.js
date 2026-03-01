@@ -234,15 +234,39 @@ function renderFeed() {
     .join("");
 }
 
+function drawBadgeImage(count) {
+  const size = 16;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  // Red circle
+  ctx.fillStyle = "#ef4444";
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // White number
+  const label = count > 99 ? "99+" : String(count);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold ${label.length > 1 ? 7 : 9}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, size / 2, size / 2 + 0.5);
+
+  return canvas.toDataURL();
+}
+
 function updateFeedBadge() {
   const badge = document.getElementById("feed-badge");
   if (newCount > 0 && currentPage !== "feed") {
     badge.textContent = newCount > 99 ? "99+" : newCount;
     badge.classList.remove("hidden");
-    window.api.updateBadge(newCount);
+    window.api.updateBadge(newCount, drawBadgeImage(newCount));
   } else {
     badge.classList.add("hidden");
-    window.api.updateBadge(0);
+    window.api.updateBadge(0, null);
   }
 }
 
@@ -589,6 +613,33 @@ async function testConnection() {
 
 function openDevPortal() {
   window.api.openExternal("https://developer.ebay.com/my/auth/?env=production&index=0");
+}
+
+// ─── Export / Import ────────────────────────────────────────────────────────
+async function exportData() {
+  const result = await window.api.exportData();
+  if (result.canceled) return;
+  if (result.ok) {
+    showToast("Data exported successfully", "success");
+  } else {
+    showToast(`Export failed: ${result.error}`, "error");
+  }
+}
+
+async function importData() {
+  if (!confirm("Importing will replace all current searches and settings. Continue?")) return;
+  const result = await window.api.importData();
+  if (result.canceled) return;
+  if (result.ok) {
+    // Reload state from main process
+    searches = await window.api.getSearches();
+    settings = await window.api.getSettings();
+    applySettings();
+    renderSearches();
+    showToast(`Imported ${result.searchCount} search${result.searchCount !== 1 ? "es" : ""} and settings`, "success");
+  } else {
+    showToast(`Import failed: ${result.error}`, "error");
+  }
 }
 
 // ─── Status ───────────────────────────────────────────────────────────────────

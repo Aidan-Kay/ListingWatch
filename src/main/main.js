@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Notification, nativeImage } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Notification, nativeImage, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
@@ -226,10 +226,11 @@ function createBadgeImage() {
   return nativeImage.createFromBuffer(buf, { width: size, height: size });
 }
 
-function updateTaskbarBadge(count) {
+function updateTaskbarBadge(count, dataUrl) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (count > 0) {
-    mainWindow.setOverlayIcon(createBadgeImage(), `${count} unseen listing${count !== 1 ? "s" : ""}`);
+    const img = dataUrl ? nativeImage.createFromDataURL(dataUrl) : createBadgeImage();
+    mainWindow.setOverlayIcon(img, `${count} unseen listing${count !== 1 ? "s" : ""}`);
   } else {
     mainWindow.setOverlayIcon(null, "");
   }
@@ -359,8 +360,7 @@ function sendNotifications(items) {
   if (!Notification.isSupported()) return;
 
   // Filter by allowed formats (default: all)
-  const allowed =
-    settings.notifyFormats && settings.notifyFormats.length > 0 ? settings.notifyFormats : ["Auction", "Buy It Now"];
+  const allowed = settings.notifyFormats && settings.notifyFormats.length > 0 ? settings.notifyFormats : ["Auction", "Buy It Now"];
 
   const filtered = items.filter((item) => {
     const formats = item.buyingFormats || [];
@@ -628,8 +628,60 @@ function setupIpc() {
     }
   });
 
-  ipcMain.handle("update-badge", (_event, count) => {
-    updateTaskbarBadge(count);
+  ipcMain.handle("update-badge", (_event, count, dataUrl) => {
+    updateTaskbarBadge(count, dataUrl);
+  });
+
+  // ─── Export / Import ────────────────────────────────────────────────────────
+  ipcMain.handle("export-data", async () => {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: "Export eBayWatch Data",
+      defaultPath: `ebaywatch-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+    try {
+      const data = { version: 1, exportedAt: new Date().toISOString(), searches, settings };
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+      return { ok: true, filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("import-data", async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: "Import eBayWatch Data",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+      properties: ["openFile"],
+    });
+    if (canceled || !filePaths.length) return { ok: false, canceled: true };
+    try {
+      const raw = fs.readFileSync(filePaths[0], "utf8");
+      const data = JSON.parse(raw);
+      if (!data.searches || !data.settings) throw new Error("Invalid backup file: missing searches or settings.");
+
+      // Stop all currently running searches before replacing
+      stopAllSearches();
+
+      // Replace state
+      searches = data.searches;
+      settings = { ...settings, ...data.settings };
+
+      // Persist
+      saveSearches();
+      saveSettingsFile();
+
+      // Restart polling for enabled searches
+      startAllSearches();
+
+      // Invalidate token in case credentials changed
+      invalidateToken();
+
+      return { ok: true, searchCount: searches.length };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 }
 
