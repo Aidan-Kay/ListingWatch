@@ -188,7 +188,7 @@ function renderFeed() {
         .join("");
 
       const cardColorStyle = item.cardColor
-        ? `border-color: ${hexToRgba(item.cardColor, 0.65)}; background-image: linear-gradient(135deg, ${hexToRgba(item.cardColor, 0.09)} 0%, transparent 45%);`
+        ? `border-color: ${hexToRgba(item.cardColor, 0.75)}; background-image: linear-gradient(135deg, ${hexToRgba(item.cardColor, 0.22)} 0%, ${hexToRgba(item.cardColor, 0.06)} 40%, transparent 65%);`
         : "";
 
       return `
@@ -550,7 +550,7 @@ async function saveSearch() {
   const keywords = document.getElementById("modal-keywords").value.trim();
   const category = document.getElementById("modal-category").value.trim();
   if (!keywords && !category) {
-    showToast("Please enter keywords or a category ID", "error");
+    showToast("Please enter keywords or select a category", "error");
     document.getElementById("modal-keywords").focus();
     return;
   }
@@ -793,8 +793,8 @@ async function loadCategoryTreeForModal(site, currentCategoryId) {
     }
     currentCategoryTree = result.categories;
 
-    // Populate L1 (depth=1)
-    const topLevel = currentCategoryTree.filter((c) => c.depth === 1);
+    // Populate L1 (depth=1) sorted alphabetically
+    const topLevel = currentCategoryTree.filter((c) => c.depth === 1).sort((a, b) => a.name.localeCompare(b.name));
     l1.innerHTML = '<option value="">— Browse top-level categories —</option>';
     for (const cat of topLevel) {
       const opt = document.createElement("option");
@@ -827,7 +827,9 @@ async function loadCategoryTreeForModal(site, currentCategoryId) {
 
 function _populateL2(parentCat) {
   const l2 = document.getElementById("modal-category-l2");
-  const children = currentCategoryTree.filter((c) => c.depth === 2 && c.parentId === parentCat.id);
+  const children = currentCategoryTree
+    .filter((c) => c.depth === 2 && c.parentId === parentCat.id)
+    .sort((a, b) => a.name.localeCompare(b.name));
   l2.innerHTML = `<option value="">All — ${escapeHtml(parentCat.name)}</option>`;
   for (const child of children) {
     const opt = document.createElement("option");

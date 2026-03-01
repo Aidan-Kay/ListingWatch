@@ -204,7 +204,15 @@
               <div class="card p-5">
                 <h2 class="text-sm font-semibold text-secondary mb-1">Refresh Interval</h2>
                 <p class="text-xs text-neutral-500 mb-3">Each search is refreshed at a random interval between these two values.</p>
-                <p class="text-xs text-neutral-500 mb-4">eBay limits API usage to <strong class="text-neutral-400">5,000 calls per day</strong>. Set your intervals accordingly. <a href="#" onclick="window.api.openExternal('https://developer.ebay.com/develop/get-started/api-call-limits')" class="text-accent-500 hover:text-accent-400">View limits ↗</a></p>
+                <p class="text-xs text-neutral-500 mb-4">
+                  eBay limits API usage to <strong class="text-neutral-400">5,000 calls per day</strong>. Set your intervals accordingly.
+                  <a
+                    href="#"
+                    onclick="window.api.openExternal('https://developer.ebay.com/develop/get-started/api-call-limits')"
+                    class="text-accent-500 hover:text-accent-400"
+                    >View limits ↗</a
+                  >
+                </p>
                 <div class="grid grid-cols-2 gap-4">
                   <div>
                     <label class="label">Minimum (seconds)</label>
@@ -312,12 +320,7 @@
               <select id="modal-category-l2" class="select-field hidden" onchange="onCategoryL2Change()">
                 <option value="">All sub-categories</option>
               </select>
-              <input
-                id="modal-category"
-                type="text"
-                class="input-field font-mono text-xs"
-                placeholder="Category ID (auto-filled above, or enter manually)"
-              />
+              <input id="modal-category" type="hidden" />
             </div>
           </div>
 
@@ -404,7 +407,6 @@
                 <option value="all">All Listings</option>
                 <option value="buy_now">Buy It Now</option>
                 <option value="auction">Auction</option>
-                <option value="best_offer">Best Offer</option>
               </select>
             </div>
           </div>
