@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 class Item {
   /**
@@ -10,13 +10,13 @@ class Item {
     this.title = data.title;
     this.brandTitle = data.brand_title;
     this.sizeTitle = data.size_title ?? null;
-    this.currency = data.price.currency_code;
-    this.price = data.price.amount;
-    this.photo = data.photo.url;
+    this.currency = data.price?.currency_code ?? null;
+    this.price = data.price?.amount ?? null;
+    this.photo = data.photo?.url ?? null;
     this.url = data.url;
 
-    const ts = data.photo.high_resolution.timestamp;
-    this.createdAtTs = new Date(ts * 1000); // Convert UNIX timestamp → Date
+    const ts = data.photo?.high_resolution?.timestamp ?? null;
+    this.createdAtTs = ts != null ? new Date(ts * 1000) : null;
     this.rawTimestamp = ts;
   }
 

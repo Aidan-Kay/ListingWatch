@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { CURRENCY_SYMBOLS } = require("../shared/constants");
+const { withRetry } = require("../shared/retry");
 
 const MARKETPLACE_IDS = {
   US: "EBAY_US",
@@ -61,38 +62,62 @@ function configure(getSettings, userDataPath) {
 // ─── OAuth Token Cache ────────────────────────────────────────────────────────
 let accessToken = null;
 let tokenExpiry = 0;
+let _tokenFetchingPromise = null; // deduplicates concurrent token requests
 
-async function getAccessToken() {
-  if (accessToken && Date.now() < tokenExpiry - 60000) return accessToken;
+function getAccessToken() {
+  if (accessToken && Date.now() < tokenExpiry - 60000) return Promise.resolve(accessToken);
 
-  const { clientId, clientSecret } = _getSettings();
-  if (!clientId || !clientSecret) throw new Error("eBay API credentials not configured. Add your Client ID and Client Secret in Settings.");
+  if (!_tokenFetchingPromise) {
+    const { clientId, clientSecret } = _getSettings();
+    if (!clientId || !clientSecret) {
+      return Promise.reject(new Error("eBay API credentials not configured. Add your Client ID and Client Secret in Settings."));
+    }
 
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const res = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope",
-  });
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`eBay auth failed (${res.status}): ${text}`);
+    _tokenFetchingPromise = withRetry(
+      async () => {
+        const res = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${credentials}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: "grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope",
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          const err = new Error(`eBay auth failed (${res.status}): ${text}`);
+          err.status = res.status;
+          throw err;
+        }
+
+        return await res.json();
+      },
+      { retries: 3, label: "ebay:auth" },
+    )
+      .then((data) => {
+        accessToken = data.access_token;
+        tokenExpiry = Date.now() + data.expires_in * 1000;
+        _tokenFetchingPromise = null;
+        console.log("eBay access token acquired, expires in", data.expires_in, "s");
+        return accessToken;
+      })
+      .catch((err) => {
+        _tokenFetchingPromise = null;
+        throw err;
+      });
   }
 
-  const data = await res.json();
-  accessToken = data.access_token;
-  tokenExpiry = Date.now() + data.expires_in * 1000;
-  console.log("eBay access token acquired, expires in", data.expires_in, "s");
-  return accessToken;
+  return _tokenFetchingPromise;
 }
 
 function invalidateToken() {
   accessToken = null;
   tokenExpiry = 0;
+  _tokenFetchingPromise = null;
 }
 
 // ─── Category Tree ─────────────────────────────────────────────────────────────
@@ -112,27 +137,34 @@ async function loadCategoryTree(site) {
       }
     }
   } catch (e) {
-    /* ignore stale cache */
+    console.warn(`[ebay] Failed to read category cache for ${site}:`, e.message);
   }
 
   const treeId = CATEGORY_TREE_IDS[site] || "0";
   const token = await getAccessToken();
   const marketplaceId = MARKETPLACE_IDS[site] || "EBAY_US";
 
-  const res = await fetch(`https://api.ebay.com/commerce/taxonomy/v1/category_tree/${treeId}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
+  const data = await withRetry(
+    async () => {
+      const res = await fetch(`https://api.ebay.com/commerce/taxonomy/v1/category_tree/${treeId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
+        },
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        const err = new Error(`Category tree fetch failed (${res.status}): ${text.slice(0, 100)}`);
+        err.status = res.status;
+        throw err;
+      }
+
+      return await res.json();
     },
-    signal: AbortSignal.timeout(30000),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Category tree fetch failed (${res.status}): ${text.slice(0, 100)}`);
-  }
-
-  const data = await res.json();
+    { retries: 3, label: `ebay:categories:${site}` },
+  );
   const categories = [];
 
   function traverse(node, parentId, depth) {
@@ -152,7 +184,7 @@ async function loadCategoryTree(site) {
   try {
     fs.writeFileSync(cacheFile, JSON.stringify({ timestamp: Date.now(), categories }), "utf8");
   } catch (e) {
-    /* ignore write errors */
+    console.warn(`[ebay] Failed to write category cache for ${site}:`, e.message);
   }
 
   categoryTreeCache[site] = categories;
@@ -200,20 +232,28 @@ async function search(search) {
   const url = `https://api.ebay.com/buy/browse/v1/item_summary/search?${params}`;
   console.log(`[ebay] [${search.name}] API Request: ${url}`);
 
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
+  const data = await withRetry(
+    async () => {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        const err = new Error(`eBay API ${res.status}: ${text.slice(0, 200)}`);
+        err.status = res.status;
+        throw err;
+      }
+
+      return await res.json();
     },
-    signal: AbortSignal.timeout(15000),
-  });
+    { retries: 3, label: `ebay:search:${search.name}` },
+  );
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`eBay API ${res.status}: ${text.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
   return parseApiResults(data, search);
 }
 
@@ -294,18 +334,27 @@ async function getItemImages(numericId, site) {
   const marketplaceId = MARKETPLACE_IDS[site] || "EBAY_US";
   const encodedId = encodeURIComponent(`v1|${numericId}|0`);
   const url = `https://api.ebay.com/buy/browse/v1/item/${encodedId}`;
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
+
+  const data = await withRetry(
+    async () => {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        const err = new Error(`eBay item fetch failed (${res.status}): ${text.slice(0, 200)}`);
+        err.status = res.status;
+        throw err;
+      }
+      return await res.json();
     },
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`eBay item fetch failed (${res.status}): ${text.slice(0, 200)}`);
-  }
-  const data = await res.json();
+    { retries: 2, label: `ebay:item:${numericId}` },
+  );
+
   const images = [];
   if (data.image?.imageUrl) images.push(data.image.imageUrl.replace(/s-l\d+/, "s-l1600"));
   if (Array.isArray(data.additionalImages)) {

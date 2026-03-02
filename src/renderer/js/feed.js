@@ -204,7 +204,7 @@ async function openImagePopup(itemId) {
         _lightboxSetImage();
       }
     } catch (e) {
-      // Silently ignore - user still sees the primary image
+      console.warn("[feed] Failed to fetch eBay item images:", e.message);
     }
   } else if (item.source === "vinted" && Array.isArray(item.images) && item.images.length > 1) {
     // Photos are already available from the search result — no extra API call needed

@@ -70,7 +70,7 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
   ipcMain.handle("get-searches", () => state.searches);
 
   ipcMain.handle("save-search", (_event, search) => {
-    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow());
+    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow);
 
     if (search.id) {
       const idx = state.searches.findIndex((s) => s.id === search.id);
@@ -115,7 +115,7 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
     const search = state.searches.find((s) => s.id === id);
     if (!search) return state.searches;
     search.enabled = enabled;
-    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow());
+    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow);
     if (enabled) {
       scheduleSearch(search, state, onNewItems, onStatus, getSettings);
     } else {
@@ -160,7 +160,7 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
   ipcMain.handle("get-feed", () => state.feed);
 
   ipcMain.handle("clear-feed", () => {
-    state.feed.splice(0);  // In-place clear to preserve shared reference
+    state.feed.splice(0); // In-place clear to preserve shared reference
     updateTaskbarBadge(0, null, getWindow());
     return state.feed;
   });
@@ -214,7 +214,11 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
     });
     if (canceled || !filePath) return { ok: false, canceled: true };
     try {
-      const data = { version: 1, exportedAt: new Date().toISOString(), searches: state.searches, settings: getSettings() };
+      const exportSettings = { ...getSettings() };
+      // Strip credentials from backup — they should not leave the machine
+      delete exportSettings.clientId;
+      delete exportSettings.clientSecret;
+      const data = { version: 1, exportedAt: new Date().toISOString(), searches: state.searches, settings: exportSettings };
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
       return { ok: true, filePath };
     } catch (err) {
@@ -244,7 +248,7 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
       saveSearches(state.searches);
       saveSettings(merged);
 
-      const { onNewItems, onStatus } = makeCallbacks(state, getSettings, win);
+      const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow);
       startAllSearches(state, onNewItems, onStatus, getSettings);
 
       ebay.invalidateToken();

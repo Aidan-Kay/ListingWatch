@@ -1,14 +1,7 @@
 // ─── Renderer-side Constants ──────────────────────────────────────────────────
 // Single source of truth for site/currency data used across renderer modules.
-
-const CURRENCY_SYMBOLS = {
-  USD: "$",
-  GBP: "£",
-  EUR: "€",
-  AUD: "A$",
-  CAD: "C$",
-  PLN: "zł",
-};
+// Note: CURRENCY_SYMBOLS (currency code → symbol) lives only in
+// src/main/shared/constants.js — the renderer uses SITE_CURRENCY_SYMBOL instead.
 
 // Maps site key → currency symbol (used in search list price display)
 const SITE_CURRENCY_SYMBOL = {

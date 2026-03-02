@@ -3,18 +3,25 @@
 const axios = require("axios");
 const { wrapper } = require("axios-cookiejar-support");
 const { CookieJar } = require("tough-cookie");
+const { isTransientError } = require("../../shared/retry");
+
+const REQUEST_TIMEOUT_MS = 20000;
 
 class Requester {
   constructor() {
     this.MAX_RETRIES = 3;
+    this.RETRY_BASE_DELAY_MS = 1000;
     this.VINTED_AUTH_URL = "https://www.vinted.fr/";
     this._cookiesFetched = false;
+
+    this._cookiesFetchingPromise = null; // deduplicates concurrent setCookies() calls
 
     this._jar = new CookieJar();
     this._client = wrapper(
       axios.create({
         jar: this._jar,
         withCredentials: true,
+        timeout: REQUEST_TIMEOUT_MS,
         headers: this._buildHeaders(),
       }),
     );
@@ -46,7 +53,8 @@ class Requester {
     const newUrl = `https://${locale}/`;
     if (newUrl === this.VINTED_AUTH_URL) return; // same locale, keep existing cookies
     this.VINTED_AUTH_URL = newUrl;
-    this._cookiesFetched = false; // force re-auth on locale change
+    this._cookiesFetched = false;
+    this._cookiesFetchingPromise = null; // invalidate any in-flight auth for the old locale
     this._client.defaults.headers.common = {
       ...this._buildHeaders(),
     };
@@ -54,25 +62,31 @@ class Requester {
 
   /**
    * Perform a GET request to the Vinted homepage so session cookies are set.
+   * Concurrent callers share a single in-flight request to avoid duplicate auth.
    */
-  async setCookies() {
-    await this._jar.removeAllCookies();
-    try {
-      await this._client.get(this.VINTED_AUTH_URL, {
-        responseType: "text",
-        maxRedirects: 5,
-      });
-      this._cookiesFetched = true;
-      console.log("Cookies set!");
-    } catch (err) {
-      // Even a non-2xx status may have set cookies; treat as non-fatal.
-      this._cookiesFetched = true;
-      console.warn(`[vinted] Cookie fetch warning: ${err.message}`);
+  setCookies() {
+    if (!this._cookiesFetchingPromise) {
+      this._cookiesFetchingPromise = this._jar
+        .removeAllCookies()
+        .then(() => this._client.get(this.VINTED_AUTH_URL, { responseType: "text", maxRedirects: 5 }))
+        .then(() => {
+          this._cookiesFetched = true;
+          this._cookiesFetchingPromise = null;
+          console.log("[vinted] Cookies set!");
+        })
+        .catch((err) => {
+          // Even a non-2xx status may have set cookies; treat as non-fatal.
+          this._cookiesFetched = true;
+          this._cookiesFetchingPromise = null;
+          console.warn(`[vinted] Cookie fetch warning: ${err.message}`);
+        });
     }
+    return this._cookiesFetchingPromise;
   }
 
   /**
-   * Perform an HTTP GET request, refreshing cookies proactively and retrying on 401.
+   * Perform an HTTP GET request, refreshing cookies proactively and retrying on
+   * transient errors (401, 429, 5xx, network/timeout failures).
    * @param {string} url
    * @param {Object} [params]
    * @returns {Promise<import('axios').AxiosResponse>}
@@ -90,16 +104,30 @@ class Requester {
         return response;
       } catch (err) {
         const status = err.response && err.response.status;
-        if (status === 401 && tried < this.MAX_RETRIES) {
+        const isLast = tried >= this.MAX_RETRIES;
+
+        if (isLast) throw err;
+
+        // 401 → cookie expired, refresh and retry immediately
+        if (status === 401) {
           console.log(`[vinted] Cookies invalid, retrying ${tried}/${this.MAX_RETRIES}`);
           await this.setCookies();
           continue;
         }
-        if (tried === this.MAX_RETRIES) throw err;
+
+        // Other transient errors → backoff and retry
+        if (isTransientError(err)) {
+          const delay = this.RETRY_BASE_DELAY_MS * Math.pow(2, tried - 1);
+          console.warn(`[vinted] Transient error (attempt ${tried}/${this.MAX_RETRIES}), retrying in ${delay}ms:`, err.message);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+
+        // Non-transient error → throw immediately
+        throw err;
       }
     }
   }
-
 }
 
 // Singleton – one shared requester instance across the app.

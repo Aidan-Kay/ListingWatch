@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { app } = require("electron");
+const { app, safeStorage } = require("electron");
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const userDataPath = app.getPath("userData");
@@ -39,10 +39,42 @@ const DEFAULT_SETTINGS = {
   notifyFormats: ["Auction", "Buy It Now"],
 };
 
+const CREDENTIAL_FIELDS = ["clientId", "clientSecret"];
+
+/**
+ * Encrypt a string using Electron's safeStorage (OS keychain-backed).
+ * Returns a base64-encoded encrypted blob, or the original string if safeStorage
+ * is unavailable.
+ */
+function encryptField(value) {
+  if (!value || !safeStorage.isEncryptionAvailable()) return value;
+  return safeStorage.encryptString(value).toString("base64");
+}
+
+/**
+ * Decrypt a base64-encoded encrypted blob back to a string.
+ */
+function decryptField(value) {
+  if (!value || !safeStorage.isEncryptionAvailable()) return value;
+  return safeStorage.decryptString(Buffer.from(value, "base64"));
+}
+
 function loadSettings() {
   try {
     if (fs.existsSync(settingsFile)) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(settingsFile, "utf8")) };
+      const raw = { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(settingsFile, "utf8")) };
+
+      if (raw._credentialsEncrypted) {
+        // Decrypt credential fields
+        for (const field of CREDENTIAL_FIELDS) {
+          if (raw[field]) raw[field] = decryptField(raw[field]);
+        }
+      } else if (raw.clientId || raw.clientSecret) {
+        // Migration: plaintext credentials on disk — re-save encrypted
+        saveSettings(raw);
+      }
+      delete raw._credentialsEncrypted;
+      return raw;
     }
   } catch (e) {
     console.error("Failed to load settings:", e);
@@ -52,7 +84,14 @@ function loadSettings() {
 
 function saveSettings(settings) {
   try {
-    fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2), "utf8");
+    const toWrite = { ...settings };
+    if (safeStorage.isEncryptionAvailable()) {
+      for (const field of CREDENTIAL_FIELDS) {
+        if (toWrite[field]) toWrite[field] = encryptField(toWrite[field]);
+      }
+      toWrite._credentialsEncrypted = true;
+    }
+    fs.writeFileSync(settingsFile, JSON.stringify(toWrite, null, 2), "utf8");
   } catch (e) {
     console.error("Failed to save settings:", e);
   }
@@ -76,7 +115,9 @@ function saveWindowState(win) {
     const [width, height] = win.getSize();
     try {
       fs.writeFileSync(windowStateFile, JSON.stringify({ x, y, width, height }), "utf8");
-    } catch {}
+    } catch (e) {
+      console.warn("Failed to save window state:", e.message);
+    }
   }, 500);
 }
 
