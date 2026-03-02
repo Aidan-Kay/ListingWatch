@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("api", {
   saveSearch: (search) => ipcRenderer.invoke("save-search", search),
   deleteSearch: (id) => ipcRenderer.invoke("delete-search", id),
   toggleSearch: (id, enabled) => ipcRenderer.invoke("toggle-search", id, enabled),
+  toggleNotify: (id, notify) => ipcRenderer.invoke("toggle-notify", id, notify),
 
   // Settings
   getSettings: () => ipcRenderer.invoke("get-settings"),

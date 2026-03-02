@@ -64,6 +64,12 @@
   .badge-auction {
     @apply bg-yellow-600 bg-opacity-20 text-yellow-400;
   }
+  .badge-bin {
+    @apply bg-blue-600 bg-opacity-20 text-blue-400;
+  }
+  .badge-offer {
+    @apply bg-purple-600 bg-opacity-20 text-purple-400;
+  }
   .badge-accent {
     @apply bg-orange-500 bg-opacity-20 text-orange-400;
   }

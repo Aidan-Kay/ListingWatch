@@ -2,6 +2,10 @@ const { app, BrowserWindow, ipcMain, shell, Notification, nativeImage, dialog } 
 const path = require("path");
 const fs = require("fs");
 
+// ─── Source modules ───────────────────────────────────────────────────────────
+const ebay = require("./ebay/ebay");
+const { searchVinted } = require("./vinted/vinted");
+
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const userDataPath = app.getPath("userData");
 const searchesFile = path.join(userDataPath, "searches.json");
@@ -23,41 +27,18 @@ let seenIds = new Set(); // item IDs seen globally (to detect new vs. initial)
 let timers = {}; // searchId -> timeout handle
 let initialised = {}; // searchId -> bool (has had first fetch)
 
-// ─── eBay OAuth Token Cache ───────────────────────────────────────────────────
-let accessToken = null;
-let tokenExpiry = 0;
-
-async function getAccessToken() {
-  if (accessToken && Date.now() < tokenExpiry - 60000) return accessToken;
-
-  const { clientId, clientSecret } = settings;
-  if (!clientId || !clientSecret) throw new Error("eBay API credentials not configured. Add your Client ID and Client Secret in Settings.");
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const res = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope",
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`eBay auth failed (${res.status}): ${text}`);
-  }
-
-  const data = await res.json();
-  accessToken = data.access_token;
-  tokenExpiry = Date.now() + data.expires_in * 1000;
-  console.log("eBay access token acquired, expires in", data.expires_in, "s");
-  return accessToken;
+// ─── Convenience wrappers (keep callers unchanged) ────────────────────────────
+function getAccessToken() {
+  return ebay.getAccessToken();
 }
-
 function invalidateToken() {
-  accessToken = null;
-  tokenExpiry = 0;
+  return ebay.invalidateToken();
+}
+function searchEbay(search) {
+  return ebay.searchEbay(search);
+}
+function loadCategoryTree(site) {
+  return ebay.loadCategoryTree(site);
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
@@ -65,6 +46,10 @@ function loadSearches() {
   try {
     if (fs.existsSync(searchesFile)) {
       searches = JSON.parse(fs.readFileSync(searchesFile, "utf8"));
+      // Normalise legacy searches saved without a source field
+      searches.forEach((s) => {
+        if (!s.source) s.source = "ebay";
+      });
     }
   } catch (e) {
     console.error("Failed to load searches:", e);
@@ -98,112 +83,6 @@ function saveSettingsFile() {
   }
 }
 
-// ─── eBay Browse API ──────────────────────────────────────────────────────────
-const MARKETPLACE_IDS = {
-  US: "EBAY_US",
-  UK: "EBAY_GB",
-  AU: "EBAY_AU",
-  DE: "EBAY_DE",
-  FR: "EBAY_FR",
-  ES: "EBAY_ES",
-  IT: "EBAY_IT",
-  CA: "EBAY_CA",
-};
-
-const CURRENCY_CODES = {
-  US: "USD",
-  UK: "GBP",
-  AU: "AUD",
-  DE: "EUR",
-  FR: "EUR",
-  ES: "EUR",
-  IT: "EUR",
-  CA: "CAD",
-};
-
-const CURRENCY_SYMBOLS = {
-  USD: "$",
-  GBP: "£",
-  EUR: "€",
-  AUD: "A$",
-  CAD: "C$",
-};
-
-// ─── Category Tree ────────────────────────────────────────────────────────────
-const CATEGORY_TREE_IDS = {
-  US: "0",
-  UK: "3",
-  AU: "15",
-  CA: "2",
-  DE: "77",
-  FR: "71",
-  ES: "186",
-  IT: "101",
-};
-
-let categoryTreeCache = {};
-
-async function loadCategoryTree(site) {
-  if (categoryTreeCache[site]) return categoryTreeCache[site];
-
-  const cacheFile = path.join(userDataPath, `category_tree_${site}.json`);
-  try {
-    if (fs.existsSync(cacheFile)) {
-      const cached = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
-      // Cache valid for 7 days
-      if (cached.timestamp && Date.now() - cached.timestamp < 7 * 24 * 60 * 60 * 1000) {
-        categoryTreeCache[site] = cached.categories;
-        return cached.categories;
-      }
-    }
-  } catch (e) {
-    /* ignore stale cache */
-  }
-
-  const treeId = CATEGORY_TREE_IDS[site] || "0";
-  const token = await getAccessToken();
-  const marketplaceId = MARKETPLACE_IDS[site] || "EBAY_US";
-
-  const res = await fetch(`https://api.ebay.com/commerce/taxonomy/v1/category_tree/${treeId}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
-    },
-    signal: AbortSignal.timeout(30000),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Category tree fetch failed (${res.status}): ${text.slice(0, 100)}`);
-  }
-
-  const data = await res.json();
-  const categories = [];
-
-  function traverse(node, parentId, depth) {
-    if (!node.category || depth > 2) return;
-    const { categoryId, categoryName } = node.category;
-    if (depth > 0) {
-      categories.push({ id: categoryId, name: categoryName, depth, parentId: parentId || null });
-    }
-    if (node.childCategoryTreeNodes) {
-      for (const child of node.childCategoryTreeNodes) {
-        traverse(child, depth > 0 ? categoryId : null, depth + 1);
-      }
-    }
-  }
-  traverse(data.rootCategoryNode, null, 0);
-
-  try {
-    fs.writeFileSync(cacheFile, JSON.stringify({ timestamp: Date.now(), categories }), "utf8");
-  } catch (e) {
-    /* ignore write errors */
-  }
-
-  categoryTreeCache[site] = categories;
-  return categories;
-}
-
 // ─── Taskbar Badge ────────────────────────────────────────────────────────────
 function updateTaskbarBadge(count, dataUrl) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -214,143 +93,12 @@ function updateTaskbarBadge(count, dataUrl) {
   }
 }
 
-const EBAY_SITE_URLS = {
-  US: "https://www.ebay.com",
-  UK: "https://www.ebay.co.uk",
-  AU: "https://www.ebay.com.au",
-  DE: "https://www.ebay.de",
-  FR: "https://www.ebay.fr",
-  ES: "https://www.ebay.es",
-  IT: "https://www.ebay.it",
-  CA: "https://www.ebay.ca",
-};
-
-async function searchEbay(search) {
-  const token = await getAccessToken();
-  const marketplaceId = MARKETPLACE_IDS[search.site] || "EBAY_US";
-  const currency = CURRENCY_CODES[search.site] || "USD";
-
-  const params = new URLSearchParams();
-  if (search.keywords) params.set("q", search.keywords);
-  if (search.category) params.set("category_ids", search.category);
-  params.set("sort", "newlyListed");
-  params.set("limit", "20");
-
-  // Build filter string
-  const filters = [];
-  if (search.minPrice || search.maxPrice) {
-    const min = search.minPrice || "";
-    const max = search.maxPrice || "";
-    filters.push(`price:[${min}..${max}],priceCurrency:${currency}`);
-  }
-  if (search.format === "buy_now") filters.push("buyingOptions:{FIXED_PRICE}");
-  else if (search.format === "auction") filters.push("buyingOptions:{AUCTION}");
-  else filters.push("buyingOptions:{AUCTION|FIXED_PRICE|BEST_OFFER}");
-  const locCode = search.itemLocation ? search.itemLocation.toUpperCase() : null;
-  if (locCode) filters.push(`itemLocationCountry:${locCode}`);
-  if (search.conditions && search.conditions.length > 0) {
-    filters.push(`conditions:{${search.conditions.join("|")}}`);
-  }
-  if (filters.length) params.set("filter", filters.join(","));
-  if (search.aspectFilters && search.aspectFilters.length > 0 && search.category) {
-    // aspect_filter requires categoryId first, then each aspect as Name:{Value1|Value2}
-    // Multiple aspects are comma-separated; multiple values within an aspect use |
-    const validAspects = search.aspectFilters.filter((af) => af.name && af.values && af.values.length > 0);
-    if (validAspects.length > 0) {
-      const parts = [`categoryId:${search.category}`];
-      for (const af of validAspects) {
-        parts.push(`${af.name}:{${af.values.join("|")}}`);
-      }
-      params.set("aspect_filter", parts.join(","));
-    }
-  }
-
-  const url = `https://api.ebay.com/buy/browse/v1/item_summary/search?${params}`;
-  console.log(`[${search.name}] Browse API: ${url}`);
-
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
-    },
-    signal: AbortSignal.timeout(15000),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`eBay API ${res.status}: ${text.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  return parseApiResults(data, search);
-}
-
-function parseApiResults(data, search) {
-  const siteBase = EBAY_SITE_URLS[search.site] || EBAY_SITE_URLS["US"];
-  return (data.itemSummaries || []).map((item) => {
-    // Price formatting — auctions use currentBidPrice, fixed-price use price
-    let price = null;
-    const priceSource = item.currentBidPrice || item.price || null;
-    if (priceSource) {
-      const sym = CURRENCY_SYMBOLS[priceSource.currency] || priceSource.currency + " ";
-      const label = item.currentBidPrice ? "Bid: " : "";
-      price = `${label}${sym}${parseFloat(priceSource.value).toFixed(2)}`;
-    }
-
-    // Image — prefer a real thumbnail
-    let image = item.image?.imageUrl || (item.thumbnailImages && item.thumbnailImages[0]?.imageUrl) || null;
-    if (image) image = image.replace(/s-l\d+/, "s-l300");
-
-    // Item ID — API returns 'v1|123456789012|0', extract numeric part
-    const rawId = item.itemId || "";
-    const numericId = rawId.replace(/^v1\|/, "").replace(/\|.*$/, "");
-
-    // Buying options → array of human labels
-    const options = item.buyingOptions || [];
-    const buyingFormats = [];
-    if (options.includes("AUCTION")) buyingFormats.push("Auction");
-    if (options.includes("FIXED_PRICE")) buyingFormats.push("Buy It Now");
-    if (options.includes("BEST_OFFER")) buyingFormats.push("Best Offer");
-    if (buyingFormats.length === 0) buyingFormats.push("Other");
-
-    const itemUrl = item.itemWebUrl || `${siteBase}/itm/${numericId}`;
-
-    // Shipping cost
-    let shipping = null;
-    if (Array.isArray(item.shippingOptions) && item.shippingOptions.length > 0) {
-      const opt = item.shippingOptions[0];
-      if (opt.shippingCost) {
-        const sc = opt.shippingCost;
-        const shipSym = CURRENCY_SYMBOLS[sc.currency] || sc.currency + " ";
-        const val = parseFloat(sc.value);
-        shipping = val === 0 ? "Free P&P" : `+${shipSym}${val.toFixed(2)} P&P`;
-      }
-    }
-
-    return {
-      id: `${search.id}_${numericId}`,
-      itemId: numericId,
-      searchId: search.id,
-      searchName: search.name,
-      cardColor: search.cardColor || null,
-      site: search.site,
-      title: item.title,
-      price,
-      shipping,
-      condition: item.condition || null,
-      image,
-      url: itemUrl,
-      buyingFormats,
-      listingDate: item.itemCreationDate || null,
-      listingEndDate: item.itemEndDate || null,
-      foundAt: new Date().toISOString(),
-    };
-  });
-}
-
 // ─── Notifications ────────────────────────────────────────────────────────────
 function sendNotifications(items) {
   if (!Notification.isSupported()) return;
+
+  // Suppress notifications when eBayWatch is the focused window (unless setting is enabled)
+  if (!settings.notifyWhenFocused && mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) return;
 
   // Filter by global allowed formats and per-search notify flag
   const allowed = settings.notifyFormats && settings.notifyFormats.length > 0 ? settings.notifyFormats : ["Auction", "Buy It Now"];
@@ -367,7 +115,7 @@ function sendNotifications(items) {
   if (filtered.length === 1) {
     const item = filtered[0];
     const notif = new Notification({
-      title: "eBayWatch",
+      title: "ListingWatch",
       body: `${item.searchName}: ${item.title}${item.price ? `  ·  ${item.price}` : ""}`,
       silent: false,
     });
@@ -375,7 +123,7 @@ function sendNotifications(items) {
     notif.show();
   } else {
     const notif = new Notification({
-      title: "eBayWatch",
+      title: "ListingWatch",
       body:
         filtered
           .map((i) => `${i.title}${i.price ? ` · ${i.price}` : ""}`)
@@ -398,7 +146,7 @@ function randomInterval(search) {
 
 async function fetchSearch(search) {
   try {
-    const items = await searchEbay(search);
+    const items = search.source === "vinted" ? await searchVinted(search) : await searchEbay(search);
 
     const isInit = !initialised[search.id];
     const newItems = [];
@@ -412,10 +160,21 @@ async function fetchSearch(search) {
 
     if (isInit) {
       initialised[search.id] = true;
-      console.log(`[${search.name}] Initialised - ${items.length} listing(s) seen, none added to feed`);
+      const initialCount = search.initialCount > 0 ? Math.min(search.initialCount, newItems.length) : 0;
+      if (initialCount > 0) {
+        const initialItems = newItems.slice(0, initialCount);
+        feed.unshift(...initialItems);
+        if (feed.length > 500) feed = feed.slice(0, 500);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("new-listings", initialItems);
+        }
+        console.log(`[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen, ${initialCount} added to feed`);
+      } else {
+        console.log(`[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen, none added to feed`);
+      }
       updateSearchStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
     } else if (newItems.length > 0) {
-      console.log(`[${search.name}] Found ${newItems.length} new listing(s)`);
+      console.log(`[${search.source}] [${search.name}] Found ${newItems.length} new listing(s)`);
       feed.unshift(...newItems);
       // Keep feed at a reasonable size
       if (feed.length > 500) feed = feed.slice(0, 500);
@@ -429,7 +188,7 @@ async function fetchSearch(search) {
       updateSearchStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
     }
   } catch (err) {
-    console.error(`[${search.name}] Fetch error:`, err.message);
+    console.error(`[${search.source}] [${search.name}] Fetch error:`, err.message);
     updateSearchStatus(search.id, { error: err.message });
   }
 }
@@ -452,7 +211,7 @@ function scheduleSearch(search) {
       const current = searches.find((s) => s.id === search.id);
       if (!current || !current.enabled) return;
       const delay = randomInterval(current);
-      console.log(`[${current.name}] Next fetch in ${Math.round(delay / 1000)}s`);
+      console.log(`[${current.source}] [${current.name}] Next fetch in ${Math.round(delay / 1000)}s`);
       timers[search.id] = setTimeout(async () => {
         const latest = searches.find((s) => s.id === search.id);
         if (latest && latest.enabled) {
@@ -602,6 +361,14 @@ function setupIpc() {
     return searches;
   });
 
+  ipcMain.handle("toggle-notify", (_event, id, notify) => {
+    const search = searches.find((s) => s.id === id);
+    if (!search) return searches;
+    search.notify = notify;
+    saveSearches();
+    return searches;
+  });
+
   ipcMain.handle("get-settings", () => settings);
 
   ipcMain.handle("save-settings", (_event, newSettings) => {
@@ -650,8 +417,8 @@ function setupIpc() {
   // ─── Export / Import ────────────────────────────────────────────────────────
   ipcMain.handle("export-data", async () => {
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-      title: "Export eBayWatch Data",
-      defaultPath: `ebaywatch-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      title: "Export ListingWatch Data",
+      defaultPath: `listingwatch-backup-${new Date().toISOString().slice(0, 10)}.json`,
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
     if (canceled || !filePath) return { ok: false, canceled: true };
@@ -666,7 +433,7 @@ function setupIpc() {
 
   ipcMain.handle("import-data", async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-      title: "Import eBayWatch Data",
+      title: "Import ListingWatch Data",
       filters: [{ name: "JSON", extensions: ["json"] }],
       properties: ["openFile"],
     });
@@ -704,6 +471,7 @@ function setupIpc() {
 app.whenReady().then(() => {
   loadSearches();
   loadSettings();
+  ebay.configure(() => settings, userDataPath);
   setupIpc();
   createWindow();
   startAllSearches();

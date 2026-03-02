@@ -1,7 +1,7 @@
 {
-  "name": "ebaywatch",
+  "name": "listing-watch",
   "version": "1.0.0",
-  "description": "eBayWatch — eBay listing monitor desktop application",
+  "description": "ListingWatch — multi-site listing monitor",
   "main": "src/main/main.js",
   "scripts": {
     "start": "npx tailwindcss -i ./src/renderer/styles/input.css -o ./src/renderer/styles/style.css && npx electron .",
@@ -15,8 +15,10 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^1.7.9",
+    "axios-cookiejar-support": "^4.0.7",
     "cheerio": "^1.0.0",
-    "fast-xml-parser": "^4.3.6"
+    "fast-xml-parser": "^4.3.6",
+    "tough-cookie": "^4.1.3"
   },
   "devDependencies": {
     "electron": "^29.0.0",
@@ -24,8 +26,8 @@
     "tailwindcss": "^3.4.3"
   },
   "build": {
-    "appId": "com.ebaywatch.app",
-    "productName": "eBayWatch",
+    "appId": "com.listingwatch.app",
+    "productName": "ListingWatch",
     "files": [
       "**/*",
       "!node_modules/*"

@@ -199,10 +199,12 @@ function renderFeed() {
       const dateForAge = item.listingDate || item.foundAt;
       const isNew = Date.now() - new Date(item.foundAt).getTime() < 60000;
       const isEnded = item.listingEndDate && new Date(item.listingEndDate).getTime() < Date.now();
+      const isSold = isEnded && item.bidCount > 0 && (item.buyingFormats || []).includes("Auction");
       const formats = item.buyingFormats || [];
       const formatBadges = formats
         .map((f) => {
-          const cls = f === "Auction" ? "badge-auction" : "badge-default";
+          const clsMap = { Auction: "badge-auction", "Buy It Now": "badge-bin", "Best Offer": "badge-offer" };
+          const cls = clsMap[f] || "badge-default";
           return `<span class="badge ${cls} ${zc.meta}">${escapeHtml(FORMAT_LABELS[f] || f)}</span>`;
         })
         .join("");
@@ -244,7 +246,7 @@ function renderFeed() {
               <p class="${zc.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
               <div class="flex flex-col items-end gap-0.5 flex-shrink-0">
                 <span class="badge badge-accent feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
-                ${isEnded ? `<span class="badge bg-neutral-700 text-neutral-500 ${zc.meta}">ENDED</span>` : ""}
+                ${isEnded ? `<span class="badge ${isSold ? "bg-green-600/20 text-green-400" : "bg-neutral-700 text-neutral-500"} ${zc.meta}">${isSold ? "SOLD" : "ENDED"}</span>` : ""}
               </div>
             </div>
             <!-- Row 2: Condition -->
@@ -260,6 +262,7 @@ function renderFeed() {
                   : `<span class="${zc.meta} text-neutral-500">No price</span>`
               }
               ${item.shipping ? `<span class="${zc.meta} text-neutral-500">${escapeHtml(item.shipping)}</span>` : ""}
+              ${item.bidCount > 0 ? `<span class="${zc.meta} text-neutral-400">${item.bidCount} bid${item.bidCount !== 1 ? "s" : ""}</span>` : ""}
             </div>
             <!-- Row 4: Listing Age -->
             <span class="${zc.meta} text-neutral-500 feed-age" data-date="${escapeAttr(dateForAge)}">Listed ${timeAgo(dateForAge)}</span>
@@ -268,7 +271,7 @@ function renderFeed() {
               <span class="truncate ${zc.meta} text-neutral-500">${escapeHtml(item.searchName)}</span>
               <div class="flex items-center gap-1 flex-shrink-0">
                 ${formatBadges}
-                <span class="badge bg-neutral-700 text-neutral-400 ${zc.meta}">${escapeHtml(item.site || "")}</span>
+                <span class="badge ${item.source === "vinted" ? "bg-teal-700/40 text-teal-400" : "bg-yellow-600/20 text-yellow-400"} ${zc.meta}">${escapeHtml(getSiteLabel(item.site))}</span>
               </div>
             </div>
           </div>
@@ -370,7 +373,44 @@ const SITE_CURRENCY_SYMBOL = {
   FR: "€",
   ES: "€",
   IT: "€",
+  // Vinted sites
+  VK: "£",
+  VFR: "€",
+  VDE: "€",
+  VBE: "€",
+  VES: "€",
+  VIT: "€",
+  VNL: "€",
+  VPL: "zł",
+  VUS: "$",
 };
+
+const VINTED_SITE_LABELS = {
+  VK: "Vinted UK",
+  VFR: "Vinted FR",
+  VDE: "Vinted DE",
+  VBE: "Vinted BE",
+  VES: "Vinted ES",
+  VIT: "Vinted IT",
+  VNL: "Vinted NL",
+  VPL: "Vinted PL",
+  VUS: "Vinted US",
+};
+
+const EBAY_SITE_LABELS = {
+  US: "eBay US",
+  UK: "eBay UK",
+  AU: "eBay AU",
+  CA: "eBay CA",
+  DE: "eBay DE",
+  FR: "eBay FR",
+  ES: "eBay ES",
+  IT: "eBay IT",
+};
+
+function getSiteLabel(site) {
+  return EBAY_SITE_LABELS[site] || VINTED_SITE_LABELS[site] || site || "";
+}
 
 function renderSearches() {
   const empty = document.getElementById("searches-empty");
@@ -389,15 +429,22 @@ function renderSearches() {
   list.classList.remove("hidden");
 
   list.innerHTML = searches
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
     .map((search) => {
       const hasError = !!search.error;
       const lastFetched = search.lastFetched ? timeAgo(search.lastFetched) : "Never";
       const sym = SITE_CURRENCY_SYMBOL[search.site] || "$";
       const priceRange =
         search.minPrice || search.maxPrice ? ` · ${sym}${search.minPrice || "0"} – ${search.maxPrice ? sym + search.maxPrice : "∞"}` : "";
+      const notifyOn = search.notify !== false;
+      const isVintedSearch = search.source === "vinted";
+      const searchCardColorStyle = search.cardColor
+        ? `border-color: ${hexToRgba(search.cardColor, 0.75)}; background-image: linear-gradient(135deg, ${hexToRgba(search.cardColor, 0.22)} 0%, ${hexToRgba(search.cardColor, 0.06)} 40%, transparent 65%);`
+        : "";
 
       return `
-      <div class="card p-4 flex items-center gap-4 cursor-pointer" onclick="openSearchModal('${escapeAttr(search.id)}')">
+      <div class="card p-4 flex items-center gap-4 cursor-pointer" style="${searchCardColorStyle}" onclick="openSearchModal('${escapeAttr(search.id)}')">
         <!-- Status dot -->
         <div class="flex-shrink-0">
           <div class="w-2.5 h-2.5 rounded-full ${search.enabled ? (hasError ? "bg-danger-500" : "bg-success-500") : "bg-neutral-600"}"></div>
@@ -407,8 +454,7 @@ function renderSearches() {
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
             <p class="text-sm font-medium text-secondary truncate">${escapeHtml(search.name)}</p>
-            <span class="badge bg-neutral-700 text-neutral-400 text-xs flex-shrink-0">${escapeHtml(search.site || "US")}</span>
-            ${search.cardColor ? `<span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${escapeAttr(search.cardColor)}"></span>` : ""}
+            <span class="badge text-xs flex-shrink-0 ${isVintedSearch ? "bg-teal-700/40 text-teal-400" : "bg-yellow-600/20 text-yellow-400"}">${escapeHtml(getSiteLabel(search.site))}</span>
             ${!search.enabled ? '<span class="badge bg-neutral-700 text-neutral-500 text-xs">Paused</span>' : ""}
           </div>
           <p class="text-xs text-neutral-500 mt-0.5 truncate">
@@ -422,16 +468,32 @@ function renderSearches() {
         </div>
 
         <!-- Actions -->
-        <div class="flex items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()">
-          <!-- Toggle -->
-          <button
-            onclick="toggleSearch('${escapeAttr(search.id)}', ${!search.enabled})"
-            title="${search.enabled ? "Pause search" : "Resume search"}"
-            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${search.enabled ? "bg-accent-500" : "bg-neutral-700"}"
-          >
-            <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${search.enabled ? "translate-x-4" : "translate-x-1"}"></span>
-          </button>
+        <div class="flex items-center gap-3 flex-shrink-0" onclick="event.stopPropagation()">
+          <!-- Notify toggle -->
+          <div class="flex flex-col items-center gap-1">
+            <span class="text-xs text-neutral-400">Notify</span>
+            <button
+              onclick="toggleSearchNotify('${escapeAttr(search.id)}', ${!notifyOn})"
+              title="${notifyOn ? "Disable notifications" : "Enable notifications"}"
+              class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${notifyOn ? "bg-accent-500" : "bg-neutral-700"}"
+            >
+              <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${notifyOn ? "translate-x-4" : "translate-x-1"}"></span>
+            </button>
+          </div>
 
+          <!-- Active toggle -->
+          <div class="flex flex-col items-center gap-1">
+            <span class="text-xs text-neutral-400">Active</span>
+            <button
+              onclick="toggleSearch('${escapeAttr(search.id)}', ${!search.enabled})"
+              title="${search.enabled ? "Pause search" : "Resume search"}"
+              class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${search.enabled ? "bg-accent-500" : "bg-neutral-700"}"
+            >
+              <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${search.enabled ? "translate-x-4" : "translate-x-1"}"></span>
+            </button>
+          </div>
+
+          <!-- Delete -->
           <button
             onclick="deleteSearch('${escapeAttr(search.id)}')"
             title="Delete search"
@@ -454,6 +516,12 @@ async function toggleSearch(id, enabled) {
   showToast(`Search ${enabled ? "resumed" : "paused"}`, "info");
 }
 
+async function toggleSearchNotify(id, notify) {
+  searches = await window.api.toggleNotify(id, notify);
+  renderSearches();
+  showToast(`Notifications ${notify ? "enabled" : "disabled"} for search`, "info");
+}
+
 async function deleteSearch(id) {
   const search = searches.find((s) => s.id === id);
   if (!search) return;
@@ -474,7 +542,11 @@ async function openSearchModal(id) {
   // Reset form
   document.getElementById("modal-search-id").value = "";
   document.getElementById("modal-name").value = "";
+  document.getElementById("modal-source").value = "ebay";
+  setModalSource("ebay");
   document.getElementById("modal-site").value = "US";
+  document.getElementById("modal-vinted-site").value = "VK";
+  document.getElementById("modal-vinted-category").value = "";
   document.getElementById("modal-keywords").value = "";
   document.getElementById("modal-category").value = "";
   document.getElementById("modal-category-l1").innerHTML = '<option value="">— Browse top-level categories —</option>';
@@ -500,7 +572,14 @@ async function openSearchModal(id) {
     titleEl.textContent = "Edit Search";
     document.getElementById("modal-search-id").value = search.id;
     document.getElementById("modal-name").value = search.name || "";
-    document.getElementById("modal-site").value = search.site || "US";
+    const source = search.source || "ebay";
+    setModalSource(source);
+    if (source === "vinted") {
+      document.getElementById("modal-vinted-site").value = search.site || "VK";
+      document.getElementById("modal-vinted-category").value = search.vintedCategory || "";
+    } else {
+      document.getElementById("modal-site").value = search.site || "US";
+    }
     document.getElementById("modal-keywords").value = search.keywords || "";
     document.getElementById("modal-category").value = search.category || "";
     document.getElementById("modal-min-price").value = search.minPrice || "";
@@ -634,6 +713,21 @@ function selectAccentColor(color) {
   applyAccentColor(color);
 }
 
+function setModalSource(source) {
+  const el = document.getElementById("modal-source");
+  if (el) el.value = source;
+  const isVinted = source === "vinted";
+  document.getElementById("ebay-site-section")?.classList.toggle("hidden", isVinted);
+  document.getElementById("vinted-site-section")?.classList.toggle("hidden", !isVinted);
+  document.getElementById("ebay-only-fields")?.classList.toggle("hidden", isVinted);
+  const ebayBtn = document.getElementById("source-btn-ebay");
+  const vintedBtn = document.getElementById("source-btn-vinted");
+  if (ebayBtn)
+    ebayBtn.className = `flex-1 py-2 rounded text-sm font-medium transition-colors ${!isVinted ? "bg-accent-500 text-white" : "bg-neutral-700 text-neutral-400 hover:text-secondary"}`;
+  if (vintedBtn)
+    vintedBtn.className = `flex-1 py-2 rounded text-sm font-medium transition-colors ${isVinted ? "bg-teal-600 text-white" : "bg-neutral-700 text-neutral-400 hover:text-secondary"}`;
+}
+
 function setModalEnabled(value) {
   modalEnabled = value;
   const toggle = document.getElementById("modal-enabled-toggle");
@@ -681,34 +775,44 @@ async function saveSearch() {
     return;
   }
 
+  const source = document.getElementById("modal-source").value || "ebay";
+  const isVinted = source === "vinted";
+
   const keywords = document.getElementById("modal-keywords").value.trim();
-  const category = document.getElementById("modal-category").value.trim();
+  const vintedCategory = isVinted ? document.getElementById("modal-vinted-category").value || null : null;
+  const category = isVinted ? "" : document.getElementById("modal-category").value.trim();
   if (!keywords && !category) {
-    showToast("Please enter keywords or select a category", "error");
+    showToast(isVinted ? "Please enter keywords" : "Please enter keywords or select a category", "error");
     document.getElementById("modal-keywords").focus();
     return;
   }
 
+  const site = isVinted ? document.getElementById("modal-vinted-site").value : document.getElementById("modal-site").value;
+
   const search = {
     id: document.getElementById("modal-search-id").value || undefined,
+    source,
     name,
-    site: document.getElementById("modal-site").value,
+    site,
     keywords,
-    category,
+    category: isVinted ? null : category,
+    vintedCategory: isVinted ? vintedCategory : null,
     minPrice: document.getElementById("modal-min-price").value || null,
     maxPrice: document.getElementById("modal-max-price").value || null,
-    itemLocation: document.getElementById("modal-location").value || null,
-    format: document.getElementById("modal-format").value,
-    conditions: selectedConditions.length > 0 ? [...selectedConditions] : [],
-    aspectFilters: aspectFilters
-      .filter((af) => af.name.trim() && af.values.trim())
-      .map((af) => ({
-        name: af.name.trim(),
-        values: af.values
-          .split(",")
-          .map((v) => v.trim())
-          .filter((v) => v),
-      })),
+    itemLocation: isVinted ? null : document.getElementById("modal-location").value || null,
+    format: isVinted ? null : document.getElementById("modal-format").value,
+    conditions: isVinted ? [] : selectedConditions.length > 0 ? [...selectedConditions] : [],
+    aspectFilters: isVinted
+      ? []
+      : aspectFilters
+          .filter((af) => af.name.trim() && af.values.trim())
+          .map((af) => ({
+            name: af.name.trim(),
+            values: af.values
+              .split(",")
+              .map((v) => v.trim())
+              .filter((v) => v),
+          })),
     cardColor: modalCardColor || null,
     minInterval: parseInt(document.getElementById("modal-min-interval").value) || null,
     maxInterval: parseInt(document.getElementById("modal-max-interval").value) || null,
@@ -764,6 +868,7 @@ function applySettings() {
   const formats = settings.notifyFormats || ["Auction", "Buy It Now"];
   document.getElementById("notif-auction").checked = formats.includes("Auction");
   document.getElementById("notif-buy-it-now").checked = formats.includes("Buy It Now");
+  document.getElementById("notif-when-focused").checked = settings.notifyWhenFocused || false;
 
   // Appearance
   feedZoom = settings.feedZoom || "medium";
@@ -792,10 +897,20 @@ async function saveSettings() {
   const notifyFormats = [];
   if (document.getElementById("notif-auction").checked) notifyFormats.push("Auction");
   if (document.getElementById("notif-buy-it-now").checked) notifyFormats.push("Buy It Now");
+  const notifyWhenFocused = document.getElementById("notif-when-focused").checked;
 
   const accentColor = document.getElementById("setting-accent-color").value || "#f97316";
 
-  settings = await window.api.saveSettings({ clientId, clientSecret, minInterval, maxInterval, notifyFormats, accentColor, feedZoom });
+  settings = await window.api.saveSettings({
+    clientId,
+    clientSecret,
+    minInterval,
+    maxInterval,
+    notifyFormats,
+    notifyWhenFocused,
+    accentColor,
+    feedZoom,
+  });
   applyAccentColor(settings.accentColor);
   showToast("Settings saved", "success");
 }
