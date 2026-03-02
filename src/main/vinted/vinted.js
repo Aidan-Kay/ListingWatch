@@ -62,6 +62,12 @@ async function searchVinted(search) {
     const item = new Item(raw);
     const currencySymbol = CURRENCY_SYMBOLS[item.currency] || item.currency + " ";
     const price = item.price ? `${currencySymbol}${parseFloat(item.price).toFixed(2)}` : null;
+    const images =
+      Array.isArray(raw.photos) && raw.photos.length > 0
+        ? raw.photos.map((p) => p.full_size_url || p.url).filter(Boolean)
+        : item.photo
+          ? [item.photo]
+          : [];
     return {
       id: `${search.id}_${item.id}`,
       itemId: String(item.id),
@@ -75,6 +81,7 @@ async function searchVinted(search) {
       shipping: null,
       condition: item.sizeTitle || null,
       image: item.photo || null,
+      images,
       url: item.url,
       buyingFormats: ["Buy It Now"],
       bidCount: 0,
@@ -85,4 +92,21 @@ async function searchVinted(search) {
   });
 }
 
-module.exports = { searchVinted, VINTED_DOMAINS };
+// Fetch all images for a single Vinted listing via the item detail API
+async function getVintedItemImages(itemId, site) {
+  const domain = VINTED_DOMAINS[site] || "www.vinted.co.uk";
+  requester.setLocale(domain);
+
+  const apiUrl = `https://${domain}${VINTED_API_URL}/items/${itemId}`;
+  const response = await requester.get(apiUrl);
+
+  if (response.status !== 200) {
+    throw new Error(`Vinted item API returned status ${response.status}`);
+  }
+
+  const item = response.data.item;
+  const photos = item.photos || (item.photo ? [item.photo] : []);
+  return photos.map((p) => p.url).filter(Boolean);
+}
+
+module.exports = { searchVinted, getVintedItemImages, VINTED_DOMAINS };

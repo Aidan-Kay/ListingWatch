@@ -4,7 +4,7 @@ const fs = require("fs");
 
 // ─── Source modules ───────────────────────────────────────────────────────────
 const ebay = require("./ebay/ebay");
-const { searchVinted } = require("./vinted/vinted");
+const { searchVinted, getVintedItemImages: _getVintedItemImages } = require("./vinted/vinted");
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const userDataPath = app.getPath("userData");
@@ -42,6 +42,9 @@ function loadCategoryTree(site) {
 }
 function getEbayItemImages(numericId, site) {
   return ebay.getEbayItemImages(numericId, site);
+}
+function getVintedItemImages(itemId, site) {
+  return _getVintedItemImages(itemId, site);
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
@@ -416,6 +419,15 @@ function setupIpc() {
   ipcMain.handle("get-ebay-item-images", async (_event, numericId, site) => {
     try {
       const images = await getEbayItemImages(numericId, site);
+      return { ok: true, images };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("get-vinted-item-images", async (_event, itemId, site) => {
+    try {
+      const images = await getVintedItemImages(itemId, site);
       return { ok: true, images };
     } catch (err) {
       return { ok: false, error: err.message };

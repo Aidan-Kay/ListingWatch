@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld("api", {
   // eBay Item Images
   getEbayItemImages: (numericId, site) => ipcRenderer.invoke("get-ebay-item-images", numericId, site),
 
+  // Vinted Item Images
+  getVintedItemImages: (itemId, site) => ipcRenderer.invoke("get-vinted-item-images", itemId, site),
+
   // Taskbar badge
   updateBadge: (count, dataUrl) => ipcRenderer.invoke("update-badge", count, dataUrl),
 

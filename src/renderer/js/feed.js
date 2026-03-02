@@ -206,6 +206,13 @@ async function openImagePopup(itemId) {
     } catch (e) {
       // Silently ignore - user still sees the primary image
     }
+  } else if (item.source === "vinted" && Array.isArray(item.images) && item.images.length > 1) {
+    // Photos are already available from the search result — no extra API call needed
+    if (!lightbox.classList.contains("hidden")) {
+      _lightboxImages = item.images;
+      _lightboxIndex = 0;
+      _lightboxSetImage();
+    }
   }
 }
 
