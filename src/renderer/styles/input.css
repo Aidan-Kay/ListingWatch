@@ -71,9 +71,9 @@
     @apply bg-purple-600 bg-opacity-20 text-purple-400;
   }
   .badge-accent {
-    @apply bg-orange-500 bg-opacity-20 text-orange-400;
+    @apply bg-accent-500 bg-opacity-20 text-accent-500;
   }
   .condition-checkbox {
-    @apply w-3.5 h-3.5 rounded border-neutral-600 bg-neutral-700 accent-[#f97316];
+    @apply w-3.5 h-3.5 rounded border-neutral-600 bg-neutral-700 accent-[#4473ad];
   }
 }

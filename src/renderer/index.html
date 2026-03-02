@@ -18,15 +18,7 @@
     <header class="flex flex-shrink-0 border-b border-neutral-700" style="padding-top: 36px">
       <!-- Branding -->
       <div class="w-52 flex-shrink-0 px-4 py-4 bg-neutral-900 border-r border-neutral-700 flex items-center gap-2.5">
-        <div class="w-7 h-7 bg-accent-500 rounded-md flex items-center justify-center flex-shrink-0">
-          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803 7.5 7.5 0 0016.803 15.803z"
-            />
-          </svg>
-        </div>
+        <img src="../../assets/icon.png" alt="ListingWatch" class="w-7 h-7 rounded-md flex-shrink-0 object-contain" />
         <div>
           <div class="text-sm font-semibold text-secondary leading-tight">ListingWatch</div>
         </div>
@@ -187,8 +179,15 @@
                 <h2 class="text-sm font-semibold text-secondary mb-1">Appearance</h2>
                 <p class="text-xs text-neutral-500 mb-4">Choose the accent colour used throughout the application.</p>
                 <div class="flex items-center gap-2 flex-wrap">
-                  <input type="hidden" id="setting-accent-color" value="#f97316" />
+                  <input type="hidden" id="setting-accent-color" value="#4473ad" />
                   <!-- Preset swatches -->
+                  <button
+                    class="accent-swatch w-6 h-6 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                    style="background: #4473ad"
+                    data-color="#4473ad"
+                    title="Default"
+                    onclick="selectAccentColor('#4473ad')"
+                  ></button>
                   <button
                     class="accent-swatch w-6 h-6 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
                     style="background: #f97316"
@@ -410,7 +409,10 @@
 
       <!-- Close button — offset below native window controls (top-right ~120px × 36px) -->
       <button
-        onclick="event.stopPropagation(); closeImagePopup()"
+        onclick="
+          event.stopPropagation();
+          closeImagePopup();
+        "
         class="absolute top-10 right-4 bg-black/50 hover:bg-black/80 text-white rounded-full p-1.5 transition-colors z-10 select-none"
         aria-label="Close lightbox"
       >

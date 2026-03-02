@@ -94,7 +94,7 @@ function renderFeed() {
             <div class="flex items-center gap-2">
               ${
                 item.price
-                  ? `<span class="${zc.price} font-semibold text-accent-500">${escapeHtml(item.price)}</span>`
+                  ? `<span class="${zc.price} font-semibold text-yellow-400">${escapeHtml(item.price)}</span>`
                   : `<span class="${zc.meta} text-neutral-400">No price</span>`
               }
               ${item.shipping ? `<span class="${zc.meta} text-neutral-400">${escapeHtml(item.shipping)}</span>` : ""}
