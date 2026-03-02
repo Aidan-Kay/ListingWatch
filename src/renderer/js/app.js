@@ -122,6 +122,7 @@ document.addEventListener("keydown", (e) => {
   settings = await window.api.getSettings();
 
   applySettings();
+  initSettingsListeners();
   renderSearches();
   renderFeed();
   updateStatus();

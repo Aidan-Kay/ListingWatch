@@ -9,19 +9,19 @@ const VINTED_PRODUCTS_ENDPOINT = "catalog/items";
 
 // ─── Vinted Domains ───────────────────────────────────────────────────────────
 const VINTED_DOMAINS = {
-  VK: "www.vinted.co.uk",
-  VFR: "www.vinted.fr",
-  VDE: "www.vinted.de",
-  VBE: "www.vinted.be",
-  VES: "www.vinted.es",
-  VIT: "www.vinted.it",
-  VNL: "www.vinted.nl",
-  VPL: "www.vinted.pl",
-  VUS: "www.vinted.com",
+  UK: "www.vinted.co.uk",
+  FR: "www.vinted.fr",
+  DE: "www.vinted.de",
+  BE: "www.vinted.be",
+  ES: "www.vinted.es",
+  IT: "www.vinted.it",
+  NL: "www.vinted.nl",
+  PL: "www.vinted.pl",
+  US: "www.vinted.com",
 };
 
 // ─── Search ───────────────────────────────────────────────────────────────────
-async function searchVinted(search) {
+async function search(search) {
   const domain = VINTED_DOMAINS[search.site] || "www.vinted.co.uk";
   requester.setLocale(domain);
 
@@ -93,7 +93,7 @@ async function searchVinted(search) {
 }
 
 // Fetch all images for a single Vinted listing via the item detail API
-async function getVintedItemImages(itemId, site) {
+async function getItemImages(itemId, site) {
   const domain = VINTED_DOMAINS[site] || "www.vinted.co.uk";
   requester.setLocale(domain);
 
@@ -109,4 +109,4 @@ async function getVintedItemImages(itemId, site) {
   return photos.map((p) => p.url).filter(Boolean);
 }
 
-module.exports = { searchVinted, getVintedItemImages, VINTED_DOMAINS };
+module.exports = { search, getItemImages };

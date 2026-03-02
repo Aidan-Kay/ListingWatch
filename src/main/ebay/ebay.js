@@ -4,6 +4,50 @@ const fs = require("fs");
 const path = require("path");
 const { CURRENCY_SYMBOLS } = require("../shared/constants");
 
+const MARKETPLACE_IDS = {
+  US: "EBAY_US",
+  UK: "EBAY_GB",
+  AU: "EBAY_AU",
+  DE: "EBAY_DE",
+  FR: "EBAY_FR",
+  ES: "EBAY_ES",
+  IT: "EBAY_IT",
+  CA: "EBAY_CA",
+};
+
+const CURRENCY_CODES = {
+  US: "USD",
+  UK: "GBP",
+  AU: "AUD",
+  DE: "EUR",
+  FR: "EUR",
+  ES: "EUR",
+  IT: "EUR",
+  CA: "CAD",
+};
+
+const EBAY_SITE_URLS = {
+  US: "https://www.ebay.com",
+  UK: "https://www.ebay.co.uk",
+  AU: "https://www.ebay.com.au",
+  DE: "https://www.ebay.de",
+  FR: "https://www.ebay.fr",
+  ES: "https://www.ebay.es",
+  IT: "https://www.ebay.it",
+  CA: "https://www.ebay.ca",
+};
+
+const CATEGORY_TREE_IDS = {
+  US: "0",
+  UK: "3",
+  AU: "15",
+  CA: "2",
+  DE: "77",
+  FR: "71",
+  ES: "186",
+  IT: "101",
+};
+
 // ─── Configuration ────────────────────────────────────────────────────────────
 // Call configure() once at startup with a settings getter and the userData path.
 let _getSettings = () => ({});
@@ -50,51 +94,6 @@ function invalidateToken() {
   accessToken = null;
   tokenExpiry = 0;
 }
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const MARKETPLACE_IDS = {
-  US: "EBAY_US",
-  UK: "EBAY_GB",
-  AU: "EBAY_AU",
-  DE: "EBAY_DE",
-  FR: "EBAY_FR",
-  ES: "EBAY_ES",
-  IT: "EBAY_IT",
-  CA: "EBAY_CA",
-};
-
-const CURRENCY_CODES = {
-  US: "USD",
-  UK: "GBP",
-  AU: "AUD",
-  DE: "EUR",
-  FR: "EUR",
-  ES: "EUR",
-  IT: "EUR",
-  CA: "CAD",
-};
-
-const EBAY_SITE_URLS = {
-  US: "https://www.ebay.com",
-  UK: "https://www.ebay.co.uk",
-  AU: "https://www.ebay.com.au",
-  DE: "https://www.ebay.de",
-  FR: "https://www.ebay.fr",
-  ES: "https://www.ebay.es",
-  IT: "https://www.ebay.it",
-  CA: "https://www.ebay.ca",
-};
-
-const CATEGORY_TREE_IDS = {
-  US: "0",
-  UK: "3",
-  AU: "15",
-  CA: "2",
-  DE: "77",
-  FR: "71",
-  ES: "186",
-  IT: "101",
-};
 
 // ─── Category Tree ─────────────────────────────────────────────────────────────
 let categoryTreeCache = {};
@@ -161,7 +160,7 @@ async function loadCategoryTree(site) {
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
-async function searchEbay(search) {
+async function search(search) {
   const token = await getAccessToken();
   const marketplaceId = MARKETPLACE_IDS[search.site] || "EBAY_US";
   const currency = CURRENCY_CODES[search.site] || "USD";
@@ -290,7 +289,7 @@ function parseApiResults(data, search) {
 }
 
 // Fetch all images for a single listing via the Browse Item API
-async function getEbayItemImages(numericId, site) {
+async function getItemImages(numericId, site) {
   const token = await getAccessToken();
   const marketplaceId = MARKETPLACE_IDS[site] || "EBAY_US";
   const encodedId = encodeURIComponent(`v1|${numericId}|0`);
@@ -317,4 +316,4 @@ async function getEbayItemImages(numericId, site) {
   return images;
 }
 
-module.exports = { configure, getAccessToken, invalidateToken, searchEbay, loadCategoryTree, getEbayItemImages };
+module.exports = { configure, getAccessToken, invalidateToken, search, loadCategoryTree, getItemImages };

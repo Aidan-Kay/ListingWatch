@@ -41,7 +41,7 @@ function renderSearches() {
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
             <p class="text-sm font-medium text-secondary truncate">${escapeHtml(search.name)}</p>
-            <span class="badge text-xs flex-shrink-0 ${isVintedSearch ? "bg-teal-700/40 text-teal-400" : "bg-yellow-600/20 text-yellow-400"}">${escapeHtml(getSiteLabel(search.site))}</span>
+            ${getSiteBadge(search)}
             ${!search.enabled ? '<span class="badge bg-neutral-700 text-neutral-500 text-xs">Paused</span>' : ""}
           </div>
           <p class="text-xs text-neutral-400 mt-0.5 truncate">

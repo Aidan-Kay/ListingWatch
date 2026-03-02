@@ -4,7 +4,7 @@ const fs = require("fs");
 
 // ─── Source modules ───────────────────────────────────────────────────────────
 const ebay = require("./ebay/ebay");
-const { searchVinted, getVintedItemImages: _getVintedItemImages } = require("./vinted/vinted");
+const vinted = require("./vinted/vinted");
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const userDataPath = app.getPath("userData");
@@ -28,23 +28,26 @@ let timers = {}; // searchId -> timeout handle
 let initialised = {}; // searchId -> bool (has had first fetch)
 
 // ─── Convenience wrappers (keep callers unchanged) ────────────────────────────
-function getAccessToken() {
+function getEbayAccessToken() {
   return ebay.getAccessToken();
 }
-function invalidateToken() {
+function invalidateEbayToken() {
   return ebay.invalidateToken();
 }
 function searchEbay(search) {
-  return ebay.searchEbay(search);
+  return ebay.search(search);
 }
-function loadCategoryTree(site) {
+function loadEbayCategoryTree(site) {
   return ebay.loadCategoryTree(site);
 }
-function getEbayItemImages(numericId, site) {
-  return ebay.getEbayItemImages(numericId, site);
+function getEbayItemImages(itemId, site) {
+  return ebay.getItemImages(itemId, site);
+}
+function searchVinted(search) {
+  return vinted.search(search);
 }
 function getVintedItemImages(itemId, site) {
-  return _getVintedItemImages(itemId, site);
+  return vinted.getItemImages(itemId, site);
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
@@ -52,10 +55,6 @@ function loadSearches() {
   try {
     if (fs.existsSync(searchesFile)) {
       searches = JSON.parse(fs.readFileSync(searchesFile, "utf8"));
-      // Normalise legacy searches saved without a source field
-      searches.forEach((s) => {
-        if (!s.source) s.source = "ebay";
-      });
     }
   } catch (e) {
     console.error("Failed to load searches:", e);
@@ -380,15 +379,15 @@ function setupIpc() {
   ipcMain.handle("save-settings", (_event, newSettings) => {
     const credentialsChanged = newSettings.clientId !== settings.clientId || newSettings.clientSecret !== settings.clientSecret;
     settings = { ...settings, ...newSettings };
-    if (credentialsChanged) invalidateToken();
+    if (credentialsChanged) invalidateEbayToken();
     saveSettingsFile();
     return settings;
   });
 
   ipcMain.handle("test-connection", async () => {
     try {
-      invalidateToken();
-      await getAccessToken();
+      invalidateEbayToken();
+      await getEbayAccessToken();
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -409,16 +408,16 @@ function setupIpc() {
 
   ipcMain.handle("get-category-tree", async (_event, site) => {
     try {
-      const categories = await loadCategoryTree(site);
+      const categories = await loadEbayCategoryTree(site);
       return { ok: true, categories };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
 
-  ipcMain.handle("get-ebay-item-images", async (_event, numericId, site) => {
+  ipcMain.handle("get-ebay-item-images", async (_event, itemId, site) => {
     try {
-      const images = await getEbayItemImages(numericId, site);
+      const images = await getEbayItemImages(itemId, site);
       return { ok: true, images };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -482,7 +481,7 @@ function setupIpc() {
       startAllSearches();
 
       // Invalidate token in case credentials changed
-      invalidateToken();
+      invalidateEbayToken();
 
       return { ok: true, searchCount: searches.length };
     } catch (err) {

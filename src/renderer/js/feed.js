@@ -107,7 +107,7 @@ function renderFeed() {
               <span class="truncate ${zc.meta} text-neutral-400">${escapeHtml(item.searchName)}</span>
               <div class="flex items-center gap-1 flex-shrink-0">
                 ${formatBadges}
-                <span class="badge ${item.source === "vinted" ? "bg-teal-700/40 text-teal-400" : "bg-yellow-600/20 text-yellow-400"} ${zc.meta}">${escapeHtml(getSiteLabel(item.site))}</span>
+                ${getSiteBadge(item)}
               </div>
             </div>
           </div>

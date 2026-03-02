@@ -65,10 +65,10 @@
     @apply bg-yellow-600 bg-opacity-20 text-yellow-400;
   }
   .badge-bin {
-    @apply bg-blue-600 bg-opacity-20 text-blue-400;
+    @apply bg-green-600 bg-opacity-20 text-green-400;
   }
   .badge-offer {
-    @apply bg-purple-600 bg-opacity-20 text-purple-400;
+    @apply bg-blue-600 bg-opacity-20 text-blue-400;
   }
   .badge-accent {
     @apply bg-accent-500 bg-opacity-20 text-accent-500;

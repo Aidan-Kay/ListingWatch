@@ -27,8 +27,8 @@ async function openSearchModal(id) {
   document.getElementById("modal-name").value = "";
   document.getElementById("modal-source").value = "ebay";
   setSearchModalSource("ebay");
-  document.getElementById("modal-site").value = "US";
-  document.getElementById("modal-vinted-site").value = "VK";
+  document.getElementById("modal-site").value = "UK";
+  document.getElementById("modal-vinted-site").value = "UK";
   document.getElementById("modal-vinted-category").value = "";
   document.getElementById("modal-keywords").value = "";
   document.getElementById("modal-category").value = "";
@@ -60,10 +60,10 @@ async function openSearchModal(id) {
     const source = search.source || "ebay";
     setSearchModalSource(source);
     if (source === "vinted") {
-      document.getElementById("modal-vinted-site").value = search.site || "VK";
+      document.getElementById("modal-vinted-site").value = search.site || "UK";
       document.getElementById("modal-vinted-category").value = search.vintedCategory || "";
     } else {
-      document.getElementById("modal-site").value = search.site || "US";
+      document.getElementById("modal-site").value = search.site || "UK";
     }
     document.getElementById("modal-keywords").value = search.keywords || "";
     document.getElementById("modal-category").value = search.category || "";

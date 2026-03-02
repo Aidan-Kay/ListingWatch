@@ -16,30 +16,25 @@ function applySettings() {
   selectAccentColor(settings.accentColor || "#f97316");
 }
 
-async function saveSettings() {
+let _settingsSaveTimer = null;
+function debounceSettingsSave(delay = 800) {
+  clearTimeout(_settingsSaveTimer);
+  _settingsSaveTimer = setTimeout(() => autoSaveSettings(), delay);
+}
+
+async function autoSaveSettings() {
   const clientId = document.getElementById("setting-client-id").value.trim();
   const clientSecret = document.getElementById("setting-client-secret").value.trim();
-  const minInterval = parseInt(document.getElementById("setting-min-interval").value, 10);
-  const maxInterval = parseInt(document.getElementById("setting-max-interval").value, 10);
-
-  if (!clientId || !clientSecret) {
-    showToast("Please enter your eBay API Client ID and Client Secret", "error");
-    return;
-  }
-  if (isNaN(minInterval) || minInterval < 10) {
-    showToast("Minimum interval must be at least 10 seconds", "error");
-    return;
-  }
-  if (isNaN(maxInterval) || maxInterval < minInterval) {
-    showToast("Maximum interval must be greater than or equal to minimum", "error");
-    return;
-  }
+  const minRaw = parseInt(document.getElementById("setting-min-interval").value, 10);
+  const maxRaw = parseInt(document.getElementById("setting-max-interval").value, 10);
+  // Fall back to last saved value if the field contains an invalid number
+  const minInterval = isNaN(minRaw) || minRaw < 10 ? settings.minInterval || 30 : minRaw;
+  const maxInterval = isNaN(maxRaw) || maxRaw < minInterval ? settings.maxInterval || 120 : maxRaw;
 
   const notifyFormats = [];
   if (document.getElementById("notif-auction").checked) notifyFormats.push("Auction");
   if (document.getElementById("notif-buy-it-now").checked) notifyFormats.push("Buy It Now");
   const notifyWhenFocused = document.getElementById("notif-when-focused").checked;
-
   const accentColor = document.getElementById("setting-accent-color").value || "#f97316";
 
   settings = await window.api.saveSettings({
@@ -53,7 +48,36 @@ async function saveSettings() {
     feedZoom,
   });
   applyAccentColor(settings.accentColor);
-  showToast("Settings saved", "success");
+}
+
+function initSettingsListeners() {
+  document.getElementById("setting-client-id").addEventListener("input", () => debounceSettingsSave());
+  document.getElementById("setting-client-secret").addEventListener("input", () => debounceSettingsSave());
+
+  document.getElementById("setting-min-interval").addEventListener("change", () => {
+    const val = parseInt(document.getElementById("setting-min-interval").value, 10);
+    if (isNaN(val) || val < 10) {
+      showToast("Minimum interval must be at least 10 seconds", "error");
+      document.getElementById("setting-min-interval").value = settings.minInterval || 30;
+      return;
+    }
+    autoSaveSettings();
+  });
+
+  document.getElementById("setting-max-interval").addEventListener("change", () => {
+    const minVal = parseInt(document.getElementById("setting-min-interval").value, 10);
+    const val = parseInt(document.getElementById("setting-max-interval").value, 10);
+    if (isNaN(val) || val < minVal) {
+      showToast("Maximum interval must be greater than or equal to minimum", "error");
+      document.getElementById("setting-max-interval").value = settings.maxInterval || 120;
+      return;
+    }
+    autoSaveSettings();
+  });
+
+  document.getElementById("notif-auction").addEventListener("change", () => autoSaveSettings());
+  document.getElementById("notif-buy-it-now").addEventListener("change", () => autoSaveSettings());
+  document.getElementById("notif-when-focused").addEventListener("change", () => autoSaveSettings());
 }
 
 async function testConnection() {

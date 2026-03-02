@@ -8,27 +8,26 @@ const SITE_CURRENCY_SYMBOL = {
   FR: "€",
   ES: "€",
   IT: "€",
-  VK: "£",
-  VFR: "€",
-  VDE: "€",
-  VBE: "€",
-  VES: "€",
-  VIT: "€",
-  VNL: "€",
-  VPL: "zł",
-  VUS: "$",
+  BE: "€",
+  NL: "€",
+  PL: "zł",
+};
+
+const BRAND_LABELS = {
+  ebay: "eBay",
+  vinted: "Vinted",
 };
 
 const VINTED_SITE_LABELS = {
-  VK: "Vinted UK",
-  VFR: "Vinted FR",
-  VDE: "Vinted DE",
-  VBE: "Vinted BE",
-  VES: "Vinted ES",
-  VIT: "Vinted IT",
-  VNL: "Vinted NL",
-  VPL: "Vinted PL",
-  VUS: "Vinted US",
+  UK: "Vinted UK",
+  FR: "Vinted FR",
+  DE: "Vinted DE",
+  BE: "Vinted BE",
+  ES: "Vinted ES",
+  IT: "Vinted IT",
+  NL: "Vinted NL",
+  PL: "Vinted PL",
+  US: "Vinted US",
 };
 
 const EBAY_SITE_LABELS = {
@@ -42,8 +41,30 @@ const EBAY_SITE_LABELS = {
   IT: "eBay IT",
 };
 
-function getSiteLabel(site) {
-  return EBAY_SITE_LABELS[site] || VINTED_SITE_LABELS[site] || site || "";
+function getBrandLabel(item) {
+  return BRAND_LABELS[item.source] || item.source || "Unknown";
+}
+
+function getSiteLabel(item) {
+  if (item.source === "ebay") {
+    return EBAY_SITE_LABELS[item.site] || item.site || "eBay";
+  } else if (item.source === "vinted") {
+    return VINTED_SITE_LABELS[item.site] || item.site || "Vinted";
+  }
+}
+
+function getSiteBadge(item) {
+  const site = getSiteLabel(item);
+  if (item.source === "ebay") {
+    const colours = ["#ff343b", "#218cff", "#ffb700", "#97d80b"];
+    const styledEbay = BRAND_LABELS.ebay
+      .split("")
+      .map((ch, i) => `<span style="color: ${colours[i]}">${ch}</span>`)
+      .join("");
+    return `<span class="badge bg-neutral-400/40 text-neutral-200">${styledEbay}${item.site ? `<span style="margin-left:0.2em">${escapeHtml(item.site)}</span>` : ""}</span>`;
+  } else if (item.source === "vinted") {
+    return `<span class="badge bg-teal-600/40 text-neutral-200">${escapeHtml(site)}</span>`;
+  }
 }
 
 // ─── Accent Colour ────────────────────────────────────────────────────────────
@@ -100,6 +121,11 @@ function selectAccentColor(color) {
   const customInput = document.getElementById("accent-color-custom-input");
   if (customInput) customInput.value = color;
   applyAccentColor(color);
+  // Auto-save so the colour persists without requiring "Save Settings"
+  if (typeof settings !== "undefined" && window.api) {
+    settings.accentColor = color;
+    autoSaveSettings();
+  }
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────

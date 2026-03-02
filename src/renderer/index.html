@@ -179,14 +179,14 @@
                 <h2 class="text-sm font-semibold text-secondary mb-1">Appearance</h2>
                 <p class="text-xs text-neutral-500 mb-4">Choose the accent colour used throughout the application.</p>
                 <div class="flex items-center gap-2 flex-wrap">
-                  <input type="hidden" id="setting-accent-color" value="#4473ad" />
+                  <input type="hidden" id="setting-accent-color" value="#397bcc" />
                   <!-- Preset swatches -->
                   <button
                     class="accent-swatch w-6 h-6 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #4473ad"
-                    data-color="#4473ad"
+                    style="background: #397bcc"
+                    data-color="#397bcc"
                     title="Default"
-                    onclick="selectAccentColor('#4473ad')"
+                    onclick="selectAccentColor('#397bcc')"
                   ></button>
                   <button
                     class="accent-swatch w-6 h-6 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
@@ -326,8 +326,6 @@
                 <p class="text-xs text-neutral-600 mt-3">Note: Changes apply to the next scheduled refresh for each search.</p>
               </div>
 
-              <button onclick="saveSettings()" class="btn-primary">Save Settings</button>
-
               <!-- Data Export / Import -->
               <div class="card p-5">
                 <h2 class="text-sm font-semibold text-secondary mb-1">Backup &amp; Restore</h2>
@@ -387,7 +385,7 @@
         id="image-lightbox-img"
         src=""
         alt=""
-        class="max-w-full max-h-full rounded-lg shadow-2xl object-contain select-none cursor-zoom-out"
+        class="max-w-full max-h-full rounded-lg shadow-2xl object-contain select-none"
         style="max-height: calc(100vh - 5rem)"
         onclick="event.stopPropagation()"
       />
@@ -494,15 +492,15 @@
           <div id="vinted-site-section" class="hidden">
             <label class="label">Vinted Site</label>
             <select id="modal-vinted-site" class="select-field">
-              <option value="VK">🇬🇧 United Kingdom</option>
-              <option value="VFR">🇫🇷 France</option>
-              <option value="VDE">🇩🇪 Germany</option>
-              <option value="VBE">🇧🇪 Belgium</option>
-              <option value="VES">🇪🇸 Spain</option>
-              <option value="VIT">🇮🇹 Italy</option>
-              <option value="VNL">🇳🇱 Netherlands</option>
-              <option value="VPL">🇵🇱 Poland</option>
-              <option value="VUS">🇺🇸 United States</option>
+              <option value="UK">🇬🇧 United Kingdom</option>
+              <option value="FR">🇫🇷 France</option>
+              <option value="DE">🇩🇪 Germany</option>
+              <option value="BE">🇧🇪 Belgium</option>
+              <option value="ES">🇪🇸 Spain</option>
+              <option value="IT">🇮🇹 Italy</option>
+              <option value="NL">🇳🇱 Netherlands</option>
+              <option value="PL">🇵🇱 Poland</option>
+              <option value="US">🇺🇸 United States</option>
             </select>
           </div>
 
