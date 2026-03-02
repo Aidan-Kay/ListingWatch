@@ -1,45 +1,6 @@
-// ─── Site Labels & Currency ───────────────────────────────────────────────────
-const SITE_CURRENCY_SYMBOL = {
-  US: "$",
-  UK: "£",
-  AU: "A$",
-  CA: "C$",
-  DE: "€",
-  FR: "€",
-  ES: "€",
-  IT: "€",
-  BE: "€",
-  NL: "€",
-  PL: "zł",
-};
-
-const BRAND_LABELS = {
-  ebay: "eBay",
-  vinted: "Vinted",
-};
-
-const VINTED_SITE_LABELS = {
-  UK: "Vinted UK",
-  FR: "Vinted FR",
-  DE: "Vinted DE",
-  BE: "Vinted BE",
-  ES: "Vinted ES",
-  IT: "Vinted IT",
-  NL: "Vinted NL",
-  PL: "Vinted PL",
-  US: "Vinted US",
-};
-
-const EBAY_SITE_LABELS = {
-  US: "eBay US",
-  UK: "eBay UK",
-  AU: "eBay AU",
-  CA: "eBay CA",
-  DE: "eBay DE",
-  FR: "eBay FR",
-  ES: "eBay ES",
-  IT: "eBay IT",
-};
+// ─── Site + Brand Helpers ─────────────────────────────────────────────────────
+// CURRENCY_SYMBOLS, SITE_CURRENCY_SYMBOL, BRAND_LABELS, EBAY_SITE_LABELS and
+// VINTED_SITE_LABELS are defined in constants.js (loaded before this file).
 
 function getBrandLabel(item) {
   return BRAND_LABELS[item.source] || item.source || "Unknown";
@@ -53,17 +14,17 @@ function getSiteLabel(item) {
   }
 }
 
-function getSiteBadge(item) {
+function getSiteBadge(item, zoomClass) {
   const site = getSiteLabel(item);
   if (item.source === "ebay") {
-    const colours = ["#ff343b", "#218cff", "#ffb700", "#97d80b"];
+    const colours = ["#ff343b", "#0c68ca", "#e4a300", "#82be00"];
     const styledEbay = BRAND_LABELS.ebay
       .split("")
       .map((ch, i) => `<span style="color: ${colours[i]}">${ch}</span>`)
       .join("");
-    return `<span class="badge bg-neutral-400/40 text-neutral-200">${styledEbay}${item.site ? `<span style="margin-left:0.2em">${escapeHtml(item.site)}</span>` : ""}</span>`;
+    return `<span class="badge ${zoomClass} bg-neutral-200 text-neutral-800">${styledEbay}${item.site ? `<span style="margin-left:0.2em">${escapeHtml(item.site)}</span>` : ""}</span>`;
   } else if (item.source === "vinted") {
-    return `<span class="badge bg-teal-600/40 text-neutral-200">${escapeHtml(site)}</span>`;
+    return `<span class="badge ${zoomClass} bg-teal-600 text-neutral-100">${escapeHtml(site)}</span>`;
   }
 }
 

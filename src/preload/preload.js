@@ -43,7 +43,4 @@ contextBridge.exposeInMainWorld("api", {
   onSearchStatus: (callback) => {
     ipcRenderer.on("search-status", (_event, status) => callback(status));
   },
-  onToast: (callback) => {
-    ipcRenderer.on("toast", (_event, message) => callback(message));
-  },
 });

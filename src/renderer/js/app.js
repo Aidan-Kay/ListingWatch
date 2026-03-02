@@ -87,7 +87,7 @@ setInterval(() => {
   });
   document.querySelectorAll(".feed-new-badge[data-found-at]").forEach((el) => {
     const age = Date.now() - new Date(el.dataset.foundAt).getTime();
-    if (age >= 60000) el.classList.add("hidden");
+    if (age >= NEW_ITEM_WINDOW_MS) el.classList.add("hidden");
   });
   document.querySelectorAll(".search-last-checked[data-date]").forEach((el) => {
     if (el.dataset.date) el.textContent = timeAgo(el.dataset.date);
@@ -101,17 +101,23 @@ setInterval(() => {
 }, 5000);
 
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
+// Single listener handles all keyboard shortcuts app-wide.
 document.addEventListener("keydown", (e) => {
+  const lightbox = document.getElementById("image-lightbox");
+  const lightboxOpen = lightbox && !lightbox.classList.contains("hidden");
+
   if (e.key === "Escape") {
-    const lightbox = document.getElementById("image-lightbox");
-    if (lightbox && !lightbox.classList.contains("hidden")) {
+    if (lightboxOpen) {
       closeImagePopup();
-      return;
+    } else {
+      const searchModal = document.getElementById("search-modal");
+      if (searchModal && !searchModal.classList.contains("hidden")) {
+        closeSearchModal();
+      }
     }
-    const searchModal = document.getElementById("search-modal");
-    if (searchModal && !searchModal.classList.contains("hidden")) {
-      closeSearchModal();
-    }
+  } else if (lightboxOpen) {
+    if (e.key === "ArrowRight") lightboxNav(1);
+    else if (e.key === "ArrowLeft") lightboxNav(-1);
   }
 });
 
@@ -149,6 +155,4 @@ document.addEventListener("keydown", (e) => {
     updateStatus();
   });
 
-  // Listen for toast messages from main
-  window.api.onToast(({ message, type }) => showToast(message, type));
 })();

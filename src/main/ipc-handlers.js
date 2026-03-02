@@ -1,0 +1,259 @@
+"use strict";
+
+const { ipcMain, shell, dialog, nativeImage } = require("electron");
+const fs = require("fs");
+const ebay = require("./ebay/ebay");
+const vinted = require("./vinted/vinted");
+const { saveSearches, saveSettings } = require("./persistence");
+const { scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = require("./polling");
+const { sendNotifications } = require("./notifications");
+
+/**
+ * Update a search's runtime status on the state object and push it to the renderer.
+ * @param {string}  searchId
+ * @param {Object}  statusPatch
+ * @param {Object}  state - { searches }
+ * @param {Electron.BrowserWindow|null} mainWindow
+ */
+function updateSearchStatus(searchId, statusPatch, state, mainWindow) {
+  const s = state.searches.find((x) => x.id === searchId);
+  if (s) Object.assign(s, statusPatch);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("search-status", { searchId, ...statusPatch });
+  }
+}
+
+/**
+ * Draw a small red badge image (used for the taskbar overlay icon).
+ * Returns a NativeImage.
+ */
+function updateTaskbarBadge(count, dataUrl, mainWindow) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (count > 0 && dataUrl) {
+    mainWindow.setOverlayIcon(nativeImage.createFromDataURL(dataUrl), `${count} unseen listing${count !== 1 ? "s" : ""}`);
+  } else {
+    mainWindow.setOverlayIcon(null, "");
+  }
+}
+
+/**
+ * Create onNewItems / onStatus callbacks wired up to the window and shared state.
+ */
+function makeCallbacks(state, getSettings, getWindow) {
+  function onNewItems(items, isInit) {
+    const win = getWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("new-listings", items);
+    }
+    if (!isInit) {
+      sendNotifications(items, getSettings(), state.searches, win);
+    }
+  }
+
+  function onStatus(searchId, patch) {
+    updateSearchStatus(searchId, patch, state, getWindow());
+  }
+
+  return { onNewItems, onStatus };
+}
+
+/**
+ * Register all ipcMain handlers.
+ *
+ * @param {Object}   state       - Shared mutable state: { searches, feed, seenIds, initialised, timers }
+ * @param {Function} getSettings - () => settings
+ * @param {Function} setSettings - (newSettings) => void
+ * @param {Function} getWindow   - () => BrowserWindow|null
+ */
+function setupIpc(state, getSettings, setSettings, getWindow) {
+  // ─── Searches ───────────────────────────────────────────────────────────────
+  ipcMain.handle("get-searches", () => state.searches);
+
+  ipcMain.handle("save-search", (_event, search) => {
+    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow());
+
+    if (search.id) {
+      const idx = state.searches.findIndex((s) => s.id === search.id);
+      if (idx !== -1) {
+        state.searches[idx] = { ...state.searches[idx], ...search };
+        stopSearch(search.id, state);
+        if (search.enabled) {
+          scheduleSearch(state.searches[idx], state, onNewItems, onStatus, getSettings);
+        }
+      }
+    } else {
+      search.id = `search_${Date.now()}`;
+      search.enabled = search.enabled !== false;
+      search.lastFetched = null;
+      search.error = null;
+      state.searches.push(search);
+      if (search.enabled) {
+        scheduleSearch(search, state, onNewItems, onStatus, getSettings);
+      }
+    }
+    saveSearches(state.searches);
+    return state.searches;
+  });
+
+  ipcMain.handle("delete-search", (_event, id) => {
+    stopSearch(id, state);
+    for (const seenId of [...state.seenIds]) {
+      if (seenId.startsWith(`${id}_`)) state.seenIds.delete(seenId);
+    }
+    // Mutate in-place to preserve the shared reference used by polling.js
+    for (let i = state.feed.length - 1; i >= 0; i--) {
+      if (state.feed[i].searchId === id) state.feed.splice(i, 1);
+    }
+    for (let i = state.searches.length - 1; i >= 0; i--) {
+      if (state.searches[i].id === id) state.searches.splice(i, 1);
+    }
+    saveSearches(state.searches);
+    return state.searches;
+  });
+
+  ipcMain.handle("toggle-search", (_event, id, enabled) => {
+    const search = state.searches.find((s) => s.id === id);
+    if (!search) return state.searches;
+    search.enabled = enabled;
+    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow());
+    if (enabled) {
+      scheduleSearch(search, state, onNewItems, onStatus, getSettings);
+    } else {
+      stopSearch(id, state);
+    }
+    saveSearches(state.searches);
+    return state.searches;
+  });
+
+  ipcMain.handle("toggle-notify", (_event, id, notify) => {
+    const search = state.searches.find((s) => s.id === id);
+    if (!search) return state.searches;
+    search.notify = notify;
+    saveSearches(state.searches);
+    return state.searches;
+  });
+
+  // ─── Settings ───────────────────────────────────────────────────────────────
+  ipcMain.handle("get-settings", () => getSettings());
+
+  ipcMain.handle("save-settings", (_event, newSettings) => {
+    const current = getSettings();
+    const credentialsChanged = newSettings.clientId !== current.clientId || newSettings.clientSecret !== current.clientSecret;
+    const merged = { ...current, ...newSettings };
+    setSettings(merged);
+    if (credentialsChanged) ebay.invalidateToken();
+    saveSettings(merged);
+    return merged;
+  });
+
+  ipcMain.handle("test-connection", async () => {
+    try {
+      ebay.invalidateToken();
+      await ebay.getAccessToken();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // ─── Feed ───────────────────────────────────────────────────────────────────
+  ipcMain.handle("get-feed", () => state.feed);
+
+  ipcMain.handle("clear-feed", () => {
+    state.feed.splice(0);  // In-place clear to preserve shared reference
+    updateTaskbarBadge(0, null, getWindow());
+    return state.feed;
+  });
+
+  // ─── Browser ────────────────────────────────────────────────────────────────
+  ipcMain.handle("open-external", (_event, url) => {
+    shell.openExternal(url);
+  });
+
+  // ─── eBay Taxonomy ──────────────────────────────────────────────────────────
+  ipcMain.handle("get-category-tree", async (_event, site) => {
+    try {
+      const categories = await ebay.loadCategoryTree(site);
+      return { ok: true, categories };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // ─── Item Images ────────────────────────────────────────────────────────────
+  ipcMain.handle("get-ebay-item-images", async (_event, itemId, site) => {
+    try {
+      const images = await ebay.getItemImages(itemId, site);
+      return { ok: true, images };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("get-vinted-item-images", async (_event, itemId, site) => {
+    try {
+      const images = await vinted.getItemImages(itemId, site);
+      return { ok: true, images };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // ─── Taskbar Badge ──────────────────────────────────────────────────────────
+  ipcMain.handle("update-badge", (_event, count, dataUrl) => {
+    updateTaskbarBadge(count, dataUrl, getWindow());
+  });
+
+  // ─── Export / Import ────────────────────────────────────────────────────────
+  ipcMain.handle("export-data", async () => {
+    const win = getWindow();
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: "Export ListingWatch Data",
+      defaultPath: `listingwatch-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+    try {
+      const data = { version: 1, exportedAt: new Date().toISOString(), searches: state.searches, settings: getSettings() };
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+      return { ok: true, filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("import-data", async () => {
+    const win = getWindow();
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: "Import ListingWatch Data",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+      properties: ["openFile"],
+    });
+    if (canceled || !filePaths.length) return { ok: false, canceled: true };
+    try {
+      const raw = fs.readFileSync(filePaths[0], "utf8");
+      const data = JSON.parse(raw);
+      if (!data.searches || !data.settings) throw new Error("Invalid backup file: missing searches or settings.");
+
+      stopAllSearches(state);
+
+      state.searches = data.searches;
+      const merged = { ...getSettings(), ...data.settings };
+      setSettings(merged);
+
+      saveSearches(state.searches);
+      saveSettings(merged);
+
+      const { onNewItems, onStatus } = makeCallbacks(state, getSettings, win);
+      startAllSearches(state, onNewItems, onStatus, getSettings);
+
+      ebay.invalidateToken();
+
+      return { ok: true, searchCount: state.searches.length };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+}
+
+module.exports = { setupIpc, updateSearchStatus, updateTaskbarBadge, makeCallbacks };

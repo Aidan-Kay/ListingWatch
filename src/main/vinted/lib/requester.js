@@ -100,16 +100,6 @@ class Requester {
     }
   }
 
-  /**
-   * Perform an HTTP POST request.
-   * @param {string} url
-   * @param {Object} [data]
-   * @returns {Promise<import('axios').AxiosResponse>}
-   */
-  async post(url, data = {}) {
-    const response = await this._client.post(url, data);
-    return response;
-  }
 }
 
 // Singleton – one shared requester instance across the app.

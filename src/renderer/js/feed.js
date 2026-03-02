@@ -33,7 +33,7 @@ function renderFeed() {
     .map((item, index) => {
       const zc = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
       const dateForAge = item.listingDate || item.foundAt;
-      const isNew = Date.now() - new Date(item.foundAt).getTime() < 60000;
+      const isNew = Date.now() - new Date(item.foundAt).getTime() < NEW_ITEM_WINDOW_MS;
       const isEnded = item.listingEndDate && new Date(item.listingEndDate).getTime() < Date.now();
       const isSold = isEnded && item.bidCount > 0 && (item.buyingFormats || []).includes("Auction");
       const formats = item.buyingFormats || [];
@@ -107,7 +107,7 @@ function renderFeed() {
               <span class="truncate ${zc.meta} text-neutral-400">${escapeHtml(item.searchName)}</span>
               <div class="flex items-center gap-1 flex-shrink-0">
                 ${formatBadges}
-                ${getSiteBadge(item)}
+                ${getSiteBadge(item, zc.meta)}
               </div>
             </div>
           </div>
@@ -258,11 +258,3 @@ function closeImagePopup() {
   _lightboxImages = [];
   _lightboxIndex = 0;
 }
-
-document.addEventListener("keydown", (e) => {
-  const lightbox = document.getElementById("image-lightbox");
-  if (!lightbox || lightbox.classList.contains("hidden")) return;
-  if (e.key === "Escape") closeImagePopup();
-  else if (e.key === "ArrowRight") lightboxNav(1);
-  else if (e.key === "ArrowLeft") lightboxNav(-1);
-});
