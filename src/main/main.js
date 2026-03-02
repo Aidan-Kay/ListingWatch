@@ -40,6 +40,9 @@ function searchEbay(search) {
 function loadCategoryTree(site) {
   return ebay.loadCategoryTree(site);
 }
+function getEbayItemImages(numericId, site) {
+  return ebay.getEbayItemImages(numericId, site);
+}
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 function loadSearches() {
@@ -405,6 +408,15 @@ function setupIpc() {
     try {
       const categories = await loadCategoryTree(site);
       return { ok: true, categories };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("get-ebay-item-images", async (_event, numericId, site) => {
+    try {
+      const images = await getEbayItemImages(numericId, site);
+      return { ok: true, images };
     } catch (err) {
       return { ok: false, error: err.message };
     }

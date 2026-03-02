@@ -232,6 +232,16 @@ function parseApiResults(data, search) {
     let image = item.image?.imageUrl || (item.thumbnailImages && item.thumbnailImages[0]?.imageUrl) || null;
     if (image) image = image.replace(/s-l\d+/, "s-l300");
 
+    // Collect all available images (primary + additional thumbnails), deduped, at full resolution
+    const imagesSet = new Set();
+    if (item.image?.imageUrl) imagesSet.add(item.image.imageUrl.replace(/s-l\d+/, "s-l1600"));
+    if (Array.isArray(item.thumbnailImages)) {
+      for (const t of item.thumbnailImages) {
+        if (t.imageUrl) imagesSet.add(t.imageUrl.replace(/s-l\d+/, "s-l1600"));
+      }
+    }
+    const images = imagesSet.size > 0 ? [...imagesSet] : image ? [image.replace(/s-l\d+/, "s-l1600")] : [];
+
     const rawId = item.itemId || "";
     const numericId = rawId.replace(/^v1\|/, "").replace(/\|.*$/, "");
 
@@ -268,6 +278,7 @@ function parseApiResults(data, search) {
       shipping,
       condition: item.condition || null,
       image,
+      images,
       url: itemUrl,
       buyingFormats,
       bidCount: item.bidCount || 0,
@@ -278,4 +289,32 @@ function parseApiResults(data, search) {
   });
 }
 
-module.exports = { configure, getAccessToken, invalidateToken, searchEbay, loadCategoryTree };
+// Fetch all images for a single listing via the Browse Item API
+async function getEbayItemImages(numericId, site) {
+  const token = await getAccessToken();
+  const marketplaceId = MARKETPLACE_IDS[site] || "EBAY_US";
+  const encodedId = encodeURIComponent(`v1|${numericId}|0`);
+  const url = `https://api.ebay.com/buy/browse/v1/item/${encodedId}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`eBay item fetch failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const images = [];
+  if (data.image?.imageUrl) images.push(data.image.imageUrl.replace(/s-l\d+/, "s-l1600"));
+  if (Array.isArray(data.additionalImages)) {
+    for (const img of data.additionalImages) {
+      if (img.imageUrl) images.push(img.imageUrl.replace(/s-l\d+/, "s-l1600"));
+    }
+  }
+  return images;
+}
+
+module.exports = { configure, getAccessToken, invalidateToken, searchEbay, loadCategoryTree, getEbayItemImages };

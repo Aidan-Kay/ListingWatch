@@ -11,12 +11,12 @@
     <link rel="stylesheet" href="styles/style.css" />
   </head>
   <body class="bg-primary text-secondary font-sans h-screen flex flex-col overflow-hidden select-none">
-    <!-- Titlebar drag region (frameless window) -->
+    <!-- Titlebar drag region -->
     <div style="-webkit-app-region: drag; position: fixed; top: 0; left: 0; right: 120px; height: 36px; z-index: 5"></div>
 
-    <!-- Unified header (single bottom border) -->
+    <!-- Header -->
     <header class="flex flex-shrink-0 border-b border-neutral-700" style="padding-top: 36px">
-      <!-- Branding (same width as sidebar) -->
+      <!-- Branding -->
       <div class="w-52 flex-shrink-0 px-4 py-4 bg-neutral-900 border-r border-neutral-700 flex items-center gap-2.5">
         <div class="w-7 h-7 bg-accent-500 rounded-md flex items-center justify-center flex-shrink-0">
           <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -274,25 +274,29 @@
               <!-- Notifications -->
               <div class="card p-5">
                 <h2 class="text-sm font-semibold text-secondary mb-1">Notifications</h2>
-                <div class="space-y-3">
-                  <label class="flex items-center gap-3 cursor-pointer mt-4">
-                    <input type="checkbox" id="notif-when-focused" class="condition-checkbox" />
-                    <div>
-                      <span class="text-sm text-secondary">Notify when ListingWatch is the active window</span>
+                <div class="space-y-4">
+                  <div>
+                    <label class="flex items-center gap-3 cursor-pointer mt-4">
+                      <input type="checkbox" id="notif-when-focused" class="condition-checkbox" />
+                      <div>
+                        <span class="text-sm text-secondary">Notify when ListingWatch is the active window</span>
+                      </div>
+                    </label>
+                  </div>
+                  <div>
+                    <p class="text-xs text-neutral-500 mb-4">
+                      Choose which buying formats trigger a Windows notification when new listings are found.
+                    </p>
+                    <div class="space-y-2">
+                      <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="notif-auction" class="condition-checkbox" />
+                        <span class="text-sm text-secondary">Auction</span>
+                      </label>
+                      <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="notif-buy-it-now" class="condition-checkbox" />
+                        <span class="text-sm text-secondary">Buy It Now</span>
+                      </label>
                     </div>
-                  </label>
-                  <p class="text-xs text-neutral-500 mb-4">
-                    Choose which buying formats trigger a Windows notification when new listings are found.
-                  </p>
-                  <div class="space-y-2">
-                    <label class="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" id="notif-auction" class="condition-checkbox" />
-                      <span class="text-sm text-secondary">Auction</span>
-                    </label>
-                    <label class="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" id="notif-buy-it-now" class="condition-checkbox" />
-                      <span class="text-sm text-secondary">Buy It Now</span>
-                    </label>
                   </div>
                 </div>
               </div>
@@ -365,13 +369,61 @@
 
     <!-- Image Lightbox -->
     <div id="image-lightbox" class="fixed inset-0 bg-black/85 z-[100] hidden items-center justify-center p-6" onclick="closeImagePopup()">
+      <!-- Prev button -->
+      <button
+        id="lightbox-prev"
+        onclick="
+          event.stopPropagation();
+          lightboxNav(-1);
+        "
+        class="absolute left-4 top-1/2 -translate-y-1/2 hidden bg-black/50 hover:bg-black/80 text-white rounded-full p-2 transition-colors z-10 select-none"
+        aria-label="Previous image"
+      >
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+
       <img
         id="image-lightbox-img"
         src=""
         alt=""
         class="max-w-full max-h-full rounded-lg shadow-2xl object-contain select-none cursor-zoom-out"
-        style="max-height: calc(100vh - 3rem)"
+        style="max-height: calc(100vh - 5rem)"
+        onclick="event.stopPropagation()"
       />
+
+      <!-- Next button -->
+      <button
+        id="lightbox-next"
+        onclick="
+          event.stopPropagation();
+          lightboxNav(1);
+        "
+        class="absolute right-4 top-1/2 -translate-y-1/2 hidden bg-black/50 hover:bg-black/80 text-white rounded-full p-2 transition-colors z-10 select-none"
+        aria-label="Next image"
+      >
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      <!-- Close button — offset below native window controls (top-right ~120px × 36px) -->
+      <button
+        onclick="event.stopPropagation(); closeImagePopup()"
+        class="absolute top-10 right-4 bg-black/50 hover:bg-black/80 text-white rounded-full p-1.5 transition-colors z-10 select-none"
+        aria-label="Close lightbox"
+      >
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      <!-- Counter -->
+      <div
+        id="lightbox-counter"
+        class="absolute bottom-4 left-1/2 -translate-x-1/2 hidden bg-black/60 text-white text-xs px-3 py-1 rounded-full select-none"
+      ></div>
     </div>
 
     <!-- Search Modal -->

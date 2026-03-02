@@ -37,7 +37,7 @@ Built with [Electron](https://www.electronjs.org/) and [Tailwind CSS](https://ta
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/your-username/ListingWatch.git
+   git clone https://github.com/Aidan-Kay/ListingWatch.git
    cd ListingWatch
    ```
 
@@ -76,7 +76,7 @@ ListingWatch accesses the public Vinted catalogue API directly (no developer acc
 
 - Supported sites: **UK, FR, DE, BE, ES, IT, NL, PL, US**
 - The Vinted category ID can be found in the URL when browsing a category on vinted.co.uk (e.g. `/catalog?catalog[]=1904`)
-- Category-specific filters (e.g. platform, brand) are entered as key/value pairs in the **Category Filters** section of the search modal. The key should be the API parameter name without the `[]` suffix — it is appended automatically. For example:
+- Category-specific filters (e.g. platform, brand) are entered as key/value pairs in the **Category Filters** section of the search modal. The key should be the API parameter name without the `[]` suffix. For example:
   - Key: `video_game_platform_ids` → Value: `1270,1269`
 
 ---

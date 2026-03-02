@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld("api", {
   // eBay Taxonomy
   getCategoryTree: (site) => ipcRenderer.invoke("get-category-tree", site),
 
+  // eBay Item Images
+  getEbayItemImages: (numericId, site) => ipcRenderer.invoke("get-ebay-item-images", numericId, site),
+
   // Taskbar badge
   updateBadge: (count, dataUrl) => ipcRenderer.invoke("update-badge", count, dataUrl),
 

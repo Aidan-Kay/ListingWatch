@@ -63,7 +63,7 @@ function renderFeed() {
           ${
             item.image
               ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover object-center" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
-                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.image)}')"
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.id)}')"
                 ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>`
               : `<div class="w-full h-full flex items-center justify-center">
                 <svg class="w-6 h-6 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -177,16 +177,70 @@ function openListing(url) {
   window.api.openExternal(url);
 }
 
-function openImagePopup(thumbUrl) {
+// ─── Lightbox ─────────────────────────────────────────────────────────────────
+let _lightboxImages = [];
+let _lightboxIndex = 0;
+
+async function openImagePopup(itemId) {
+  const item = feedItems.find((i) => i.id === itemId);
+  if (!item || !item.image) return;
+
+  // Show the thumbnail immediately so the lightbox opens without delay
+  _lightboxImages = [item.image.replace(/s-l\d+/, "s-l1600")];
+  _lightboxIndex = 0;
+  _lightboxSetImage();
+
   const lightbox = document.getElementById("image-lightbox");
-  const img = document.getElementById("image-lightbox-img");
-  const fullUrl = thumbUrl.replace(/s-l\d+/, "s-l1600");
-  img.src = fullUrl;
-  img.onerror = () => {
-    img.src = thumbUrl;
-  };
   lightbox.classList.remove("hidden");
   lightbox.classList.add("flex");
+
+  // Async-fetch all listing images for eBay items
+  if (item.source === "ebay" && item.itemId && window.api.getEbayItemImages) {
+    try {
+      const result = await window.api.getEbayItemImages(item.itemId, item.site);
+      // Only update if the lightbox is still showing the same item
+      if (result.ok && result.images.length > 1 && !lightbox.classList.contains("hidden")) {
+        _lightboxImages = result.images;
+        _lightboxSetImage();
+      }
+    } catch (e) {
+      // Silently ignore - user still sees the primary image
+    }
+  }
+}
+
+function _lightboxSetImage() {
+  const img = document.getElementById("image-lightbox-img");
+  const counter = document.getElementById("lightbox-counter");
+  const prevBtn = document.getElementById("lightbox-prev");
+  const nextBtn = document.getElementById("lightbox-next");
+
+  const url = _lightboxImages[_lightboxIndex];
+  img.src = url;
+  img.onerror = () => {
+    img.src = url.replace(/s-l\d+/, "s-l640");
+  };
+
+  const total = _lightboxImages.length;
+  if (total > 1) {
+    counter.textContent = `${_lightboxIndex + 1} / ${total}`;
+    counter.classList.remove("hidden");
+    prevBtn.classList.remove("hidden");
+    nextBtn.classList.remove("hidden");
+    prevBtn.style.opacity = _lightboxIndex === 0 ? "0.35" : "1";
+    nextBtn.style.opacity = _lightboxIndex === total - 1 ? "0.35" : "1";
+  } else {
+    counter.classList.add("hidden");
+    prevBtn.classList.add("hidden");
+    nextBtn.classList.add("hidden");
+  }
+}
+
+function lightboxNav(dir) {
+  const total = _lightboxImages.length;
+  if (total < 2) return;
+  _lightboxIndex = (_lightboxIndex + dir + total) % total;
+  _lightboxSetImage();
 }
 
 function closeImagePopup() {
@@ -194,4 +248,14 @@ function closeImagePopup() {
   lightbox.classList.add("hidden");
   lightbox.classList.remove("flex");
   document.getElementById("image-lightbox-img").src = "";
+  _lightboxImages = [];
+  _lightboxIndex = 0;
 }
+
+document.addEventListener("keydown", (e) => {
+  const lightbox = document.getElementById("image-lightbox");
+  if (!lightbox || lightbox.classList.contains("hidden")) return;
+  if (e.key === "Escape") closeImagePopup();
+  else if (e.key === "ArrowRight") lightboxNav(1);
+  else if (e.key === "ArrowLeft") lightboxNav(-1);
+});
