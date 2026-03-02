@@ -49,6 +49,12 @@ const CATEGORY_TREE_IDS = {
   IT: "101",
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function ebayImageUrl(url, size = 1600) {
+  if (!url) return url;
+  return url.replace(/s-l\d+/, `s-l${size}`);
+}
+
 // ─── Configuration ────────────────────────────────────────────────────────────
 // Call configure() once at startup with a settings getter and the userData path.
 let _getSettings = () => ({});
@@ -192,36 +198,39 @@ async function loadCategoryTree(site) {
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
-async function search(search) {
+function buildSearchFilters(query, currency) {
+  const filters = [];
+  if (query.minPrice || query.maxPrice) {
+    filters.push(`price:[${query.minPrice || ""}..${query.maxPrice || ""}],priceCurrency:${currency}`);
+  }
+  if (query.format === "buy_now") filters.push("buyingOptions:{FIXED_PRICE}");
+  else if (query.format === "auction") filters.push("buyingOptions:{AUCTION}");
+  else filters.push("buyingOptions:{AUCTION|FIXED_PRICE|BEST_OFFER}");
+  const locCode = query.itemLocation ? query.itemLocation.toUpperCase() : null;
+  if (locCode) filters.push(`itemLocationCountry:${locCode}`);
+  if (query.conditions && query.conditions.length > 0) {
+    filters.push(`conditions:{${query.conditions.join("|")}}`);
+  }
+  return filters;
+}
+
+async function search(query) {
   const token = await getAccessToken();
-  const marketplaceId = MARKETPLACE_IDS[search.site] || "EBAY_US";
-  const currency = CURRENCY_CODES[search.site] || "USD";
+  const marketplaceId = MARKETPLACE_IDS[query.site] || "EBAY_US";
+  const currency = CURRENCY_CODES[query.site] || "USD";
 
   const params = new URLSearchParams();
-  if (search.keywords) params.set("q", search.keywords);
-  if (search.category) params.set("category_ids", search.category);
+  if (query.keywords) params.set("q", query.keywords);
+  if (query.category) params.set("category_ids", query.category);
   params.set("sort", "newlyListed");
   params.set("limit", "50");
 
-  const filters = [];
-  if (search.minPrice || search.maxPrice) {
-    const min = search.minPrice || "";
-    const max = search.maxPrice || "";
-    filters.push(`price:[${min}..${max}],priceCurrency:${currency}`);
-  }
-  if (search.format === "buy_now") filters.push("buyingOptions:{FIXED_PRICE}");
-  else if (search.format === "auction") filters.push("buyingOptions:{AUCTION}");
-  else filters.push("buyingOptions:{AUCTION|FIXED_PRICE|BEST_OFFER}");
-  const locCode = search.itemLocation ? search.itemLocation.toUpperCase() : null;
-  if (locCode) filters.push(`itemLocationCountry:${locCode}`);
-  if (search.conditions && search.conditions.length > 0) {
-    filters.push(`conditions:{${search.conditions.join("|")}}`);
-  }
+  const filters = buildSearchFilters(query, currency);
   if (filters.length) params.set("filter", filters.join(","));
-  if (search.aspectFilters && search.aspectFilters.length > 0 && search.category) {
-    const validAspects = search.aspectFilters.filter((af) => af.name && af.values && af.values.length > 0);
+  if (query.aspectFilters && query.aspectFilters.length > 0 && query.category) {
+    const validAspects = query.aspectFilters.filter((af) => af.name && af.values && af.values.length > 0);
     if (validAspects.length > 0) {
-      const parts = [`categoryId:${search.category}`];
+      const parts = [`categoryId:${query.category}`];
       for (const af of validAspects) {
         parts.push(`${af.name}:{${af.values.join("|")}}`);
       }
@@ -230,7 +239,7 @@ async function search(search) {
   }
 
   const url = `https://api.ebay.com/buy/browse/v1/item_summary/search?${params}`;
-  console.log(`[ebay] [${search.name}] API Request: ${url}`);
+  console.log(`[ebay] [${query.name}] API Request: ${url}`);
 
   const data = await withRetry(
     async () => {
@@ -251,35 +260,39 @@ async function search(search) {
 
       return await res.json();
     },
-    { retries: 3, label: `ebay:search:${search.name}` },
+    { retries: 3, label: `ebay:search:${query.name}` },
   );
 
-  return parseApiResults(data, search);
+  return parseApiResults(data, query);
 }
 
-function parseApiResults(data, search) {
-  const siteBase = EBAY_SITE_URLS[search.site] || EBAY_SITE_URLS["US"];
+function formatItemPrice(item) {
+  const priceSource = item.currentBidPrice || item.price || null;
+  if (!priceSource) return null;
+  const sym = CURRENCY_SYMBOLS[priceSource.currency] || priceSource.currency + " ";
+  const label = item.currentBidPrice ? "Bid: " : "";
+  return `${label}${sym}${parseFloat(priceSource.value).toFixed(2)}`;
+}
+
+function collectItemImages(item) {
+  const thumbnail = item.image?.imageUrl || (item.thumbnailImages && item.thumbnailImages[0]?.imageUrl) || null;
+  const image = thumbnail ? ebayImageUrl(thumbnail, 300) : null;
+  const imagesSet = new Set();
+  if (item.image?.imageUrl) imagesSet.add(ebayImageUrl(item.image.imageUrl));
+  if (Array.isArray(item.thumbnailImages)) {
+    for (const t of item.thumbnailImages) {
+      if (t.imageUrl) imagesSet.add(ebayImageUrl(t.imageUrl));
+    }
+  }
+  const images = imagesSet.size > 0 ? [...imagesSet] : image ? [ebayImageUrl(image)] : [];
+  return { image, images };
+}
+
+function parseApiResults(data, query) {
+  const siteBase = EBAY_SITE_URLS[query.site] || EBAY_SITE_URLS["US"];
   return (data.itemSummaries || []).map((item) => {
-    let price = null;
-    const priceSource = item.currentBidPrice || item.price || null;
-    if (priceSource) {
-      const sym = CURRENCY_SYMBOLS[priceSource.currency] || priceSource.currency + " ";
-      const label = item.currentBidPrice ? "Bid: " : "";
-      price = `${label}${sym}${parseFloat(priceSource.value).toFixed(2)}`;
-    }
-
-    let image = item.image?.imageUrl || (item.thumbnailImages && item.thumbnailImages[0]?.imageUrl) || null;
-    if (image) image = image.replace(/s-l\d+/, "s-l300");
-
-    // Collect all available images (primary + additional thumbnails), deduped, at full resolution
-    const imagesSet = new Set();
-    if (item.image?.imageUrl) imagesSet.add(item.image.imageUrl.replace(/s-l\d+/, "s-l1600"));
-    if (Array.isArray(item.thumbnailImages)) {
-      for (const t of item.thumbnailImages) {
-        if (t.imageUrl) imagesSet.add(t.imageUrl.replace(/s-l\d+/, "s-l1600"));
-      }
-    }
-    const images = imagesSet.size > 0 ? [...imagesSet] : image ? [image.replace(/s-l\d+/, "s-l1600")] : [];
+    const price = formatItemPrice(item);
+    const { image, images } = collectItemImages(item);
 
     const rawId = item.itemId || "";
     const numericId = rawId.replace(/^v1\|/, "").replace(/\|.*$/, "");
@@ -305,12 +318,12 @@ function parseApiResults(data, search) {
     }
 
     return {
-      id: `${search.id}_${numericId}`,
+      id: `${query.id}_${numericId}`,
       itemId: numericId,
-      searchId: search.id,
-      searchName: search.name,
-      cardColor: search.cardColor || null,
-      site: search.site,
+      searchId: query.id,
+      searchName: query.name,
+      cardColor: query.cardColor || null,
+      site: query.site,
       source: "ebay",
       title: item.title,
       price,
@@ -356,10 +369,10 @@ async function getItemImages(numericId, site) {
   );
 
   const images = [];
-  if (data.image?.imageUrl) images.push(data.image.imageUrl.replace(/s-l\d+/, "s-l1600"));
+  if (data.image?.imageUrl) images.push(ebayImageUrl(data.image.imageUrl));
   if (Array.isArray(data.additionalImages)) {
     for (const img of data.additionalImages) {
-      if (img.imageUrl) images.push(img.imageUrl.replace(/s-l\d+/, "s-l1600"));
+      if (img.imageUrl) images.push(ebayImageUrl(img.imageUrl));
     }
   }
   return images;

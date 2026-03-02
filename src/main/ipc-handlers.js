@@ -16,8 +16,8 @@ const { sendNotifications } = require("./notifications");
  * @param {Electron.BrowserWindow|null} mainWindow
  */
 function updateSearchStatus(searchId, statusPatch, state, mainWindow) {
-  const s = state.searches.find((x) => x.id === searchId);
-  if (s) Object.assign(s, statusPatch);
+  const match = state.searches.find((x) => x.id === searchId);
+  if (match) Object.assign(match, statusPatch);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("search-status", { searchId, ...statusPatch });
   }

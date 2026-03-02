@@ -5,11 +5,7 @@
 // Aspect filters   → aspect-filters.js
 // Vinted filters   → vinted-filters.js
 
-async function openSearchModal(id) {
-  const modal = document.getElementById("search-modal");
-  const titleEl = document.getElementById("modal-title");
-
-  // Reset form
+function resetSearchForm() {
   document.getElementById("modal-search-id").value = "";
   document.getElementById("modal-name").value = "";
   document.getElementById("modal-source").value = "ebay";
@@ -37,37 +33,48 @@ async function openSearchModal(id) {
   setSearchModalEnabled(true);
   setSearchModalNotify(true);
   setSearchModalCardColor(null);
+}
+
+function populateSearchForm(search) {
+  document.getElementById("modal-search-id").value = search.id;
+  document.getElementById("modal-name").value = search.name || "";
+  const source = search.source || "ebay";
+  setSearchModalSource(source);
+  if (source === "vinted") {
+    document.getElementById("modal-vinted-site").value = search.site || "UK";
+    document.getElementById("modal-vinted-category").value = search.vintedCategory || "";
+  } else {
+    document.getElementById("modal-site").value = search.site || "UK";
+  }
+  document.getElementById("modal-keywords").value = search.keywords || "";
+  document.getElementById("modal-category").value = search.category || "";
+  document.getElementById("modal-min-price").value = search.minPrice || "";
+  document.getElementById("modal-max-price").value = search.maxPrice || "";
+  document.getElementById("modal-location").value = search.itemLocation ? search.itemLocation.toUpperCase() : "";
+  document.getElementById("modal-format").value = search.format || "all";
+  document.getElementById("modal-min-interval").value = search.minInterval || "";
+  document.getElementById("modal-max-interval").value = search.maxInterval || "";
+  document.getElementById("modal-initial-count").value = search.initialCount || "";
+  selectedConditions = Array.isArray(search.conditions) ? [...search.conditions] : [];
+  updateConditionDisplay();
+  loadAspectFiltersFromSaved(search.aspectFilters);
+  loadVintedFiltersFromSaved(search.vintedFilters);
+  setSearchModalEnabled(search.enabled !== false);
+  setSearchModalNotify(search.notify !== false);
+  setSearchModalCardColor(search.cardColor || null);
+}
+
+async function openSearchModal(id) {
+  const modal = document.getElementById("search-modal");
+  const titleEl = document.getElementById("modal-title");
+
+  resetSearchForm();
 
   if (id) {
     const search = searches.find((s) => s.id === id);
     if (!search) return;
     titleEl.textContent = "Edit Search";
-    document.getElementById("modal-search-id").value = search.id;
-    document.getElementById("modal-name").value = search.name || "";
-    const source = search.source || "ebay";
-    setSearchModalSource(source);
-    if (source === "vinted") {
-      document.getElementById("modal-vinted-site").value = search.site || "UK";
-      document.getElementById("modal-vinted-category").value = search.vintedCategory || "";
-    } else {
-      document.getElementById("modal-site").value = search.site || "UK";
-    }
-    document.getElementById("modal-keywords").value = search.keywords || "";
-    document.getElementById("modal-category").value = search.category || "";
-    document.getElementById("modal-min-price").value = search.minPrice || "";
-    document.getElementById("modal-max-price").value = search.maxPrice || "";
-    document.getElementById("modal-location").value = search.itemLocation ? search.itemLocation.toUpperCase() : "";
-    document.getElementById("modal-format").value = search.format || "all";
-    document.getElementById("modal-min-interval").value = search.minInterval || "";
-    document.getElementById("modal-max-interval").value = search.maxInterval || "";
-    document.getElementById("modal-initial-count").value = search.initialCount || "";
-    selectedConditions = Array.isArray(search.conditions) ? [...search.conditions] : [];
-    updateConditionDisplay();
-    loadAspectFiltersFromSaved(search.aspectFilters);
-    loadVintedFiltersFromSaved(search.vintedFilters);
-    setSearchModalEnabled(search.enabled !== false);
-    setSearchModalNotify(search.notify !== false);
-    setSearchModalCardColor(search.cardColor || null);
+    populateSearchForm(search);
   } else {
     titleEl.textContent = "Add Search";
   }
@@ -177,12 +184,12 @@ function setSearchModalCardColor(color) {
 }
 
 // ─── Save ─────────────────────────────────────────────────────────────────────
-async function saveSearch() {
+function collectSearchFormData() {
   const name = document.getElementById("modal-name").value.trim();
   if (!name) {
     showToast("Please enter a search name", "error");
     document.getElementById("modal-name").focus();
-    return;
+    return null;
   }
 
   const source = document.getElementById("modal-source").value || "ebay";
@@ -194,12 +201,12 @@ async function saveSearch() {
   if (!keywords && !category) {
     showToast(isVinted ? "Please enter keywords" : "Please enter keywords or select a category", "error");
     document.getElementById("modal-keywords").focus();
-    return;
+    return null;
   }
 
   const site = isVinted ? document.getElementById("modal-vinted-site").value : document.getElementById("modal-site").value;
 
-  const search = {
+  return {
     id: document.getElementById("modal-search-id").value || undefined,
     source,
     name,
@@ -238,6 +245,11 @@ async function saveSearch() {
     notify: searchModalNotify,
     enabled: searchModalEnabled,
   };
+}
+
+async function saveSearch() {
+  const search = collectSearchFormData();
+  if (!search) return;
 
   try {
     searches = await window.api.saveSearch(search);
@@ -255,7 +267,7 @@ async function saveSearch() {
     }
     renderSearches();
     closeSearchModal();
-    showToast(`Search "${name}" ${search.id ? "updated" : "added"}`, "success");
+    showToast(`Search "${search.name}" ${search.id ? "updated" : "added"}`, "success");
   } catch (err) {
     showToast(`Failed to save search: ${err.message}`, "error");
   }

@@ -21,17 +21,17 @@ const VINTED_DOMAINS = {
 };
 
 // ─── Search ───────────────────────────────────────────────────────────────────
-async function search(search) {
-  const domain = VINTED_DOMAINS[search.site] || "www.vinted.co.uk";
+async function search(query) {
+  const domain = VINTED_DOMAINS[query.site] || "www.vinted.co.uk";
   requester.setLocale(domain);
 
   const apiUrl = `https://${domain}${VINTED_API_URL}/${VINTED_PRODUCTS_ENDPOINT}`;
 
   const params = {
-    search_text: search.keywords || undefined,
-    catalog_ids: search.vintedCategory || undefined,
-    price_from: search.minPrice || undefined,
-    price_to: search.maxPrice || undefined,
+    search_text: query.keywords || undefined,
+    catalog_ids: query.vintedCategory || undefined,
+    price_from: query.minPrice || undefined,
+    price_to: query.maxPrice || undefined,
     order: "newest_first",
     per_page: 50,
     page: 1,
@@ -42,8 +42,8 @@ async function search(search) {
   }
 
   // Apply Vinted category-specific filters (e.g. video_game_platform_ids[] = "1270,1269")
-  if (Array.isArray(search.vintedFilters)) {
-    for (const vf of search.vintedFilters) {
+  if (Array.isArray(query.vintedFilters)) {
+    for (const vf of query.vintedFilters) {
       if (vf.name && vf.values) {
         const key = vf.name.endsWith("[]") ? vf.name : `${vf.name}[]`;
         params[key] = vf.values;
@@ -51,7 +51,7 @@ async function search(search) {
     }
   }
 
-  console.log(`[vinted] [${search.name}] API Request: ${apiUrl}`, params);
+  console.log(`[vinted] [${query.name}] API Request: ${apiUrl}`, params);
 
   const response = await requester.get(apiUrl, params);
   if (response.status !== 200) {
@@ -69,12 +69,12 @@ async function search(search) {
           ? [item.photo]
           : [];
     return {
-      id: `${search.id}_${item.id}`,
+      id: `${query.id}_${item.id}`,
       itemId: String(item.id),
-      searchId: search.id,
-      searchName: search.name,
-      cardColor: search.cardColor || null,
-      site: search.site,
+      searchId: query.id,
+      searchName: query.name,
+      cardColor: query.cardColor || null,
+      site: query.site,
       source: "vinted",
       title: item.title,
       price,

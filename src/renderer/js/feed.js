@@ -6,12 +6,89 @@ const ZOOM_CONFIG = {
   large: { minCol: "480px", img: "w-32 h-32", title: "text-base", price: "text-base", meta: "text-sm" },
 };
 
+function renderFeedCard(item, index, zoom) {
+  const dateForAge = item.listingDate || item.foundAt;
+  const isNew = Date.now() - new Date(item.foundAt).getTime() < NEW_ITEM_WINDOW_MS;
+  const isEnded = item.listingEndDate && new Date(item.listingEndDate).getTime() < Date.now();
+  const isSold = isEnded && item.bidCount > 0 && (item.buyingFormats || []).includes("Auction");
+  const formats = item.buyingFormats || [];
+  const formatBadges = formats
+    .map((f) => {
+      const clsMap = { Auction: "badge-auction", "Buy It Now": "badge-bin", "Best Offer": "badge-offer" };
+      const cls = clsMap[f] || "badge-default";
+      return `<span class="badge ${cls} ${zoom.meta}">${escapeHtml(FORMAT_BADGE_LABELS[f] || f)}</span>`;
+    })
+    .join("");
+
+  const cardColorStyle = item.cardColor
+    ? `border-color: ${hexToRgba(item.cardColor, 0.75)}; background-image: linear-gradient(135deg, ${hexToRgba(item.cardColor, 0.15)} 0%, ${hexToRgba(item.cardColor, 0.04)} 25%, transparent 40%);`
+    : "";
+  const endedStyle = isEnded ? "opacity: 0.5;" : "";
+
+  return `
+    <div
+      class="card p-3 flex gap-3 cursor-pointer hover:bg-neutral-700/50 animate-fade-in"
+      style="animation-delay: ${Math.min(index, 10) * 30}ms; ${cardColorStyle}${endedStyle}"
+      data-end-date="${escapeAttr(item.listingEndDate || "")}"
+      onclick="openListing('${escapeAttr(item.url)}')"
+      title="${escapeAttr(item.title)}"
+    >
+      <!-- Thumbnail -->
+      <div class="${zoom.img} flex-shrink-0 rounded-md overflow-hidden bg-neutral-700 relative group">
+        ${
+          item.image
+            ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover object-center" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
+              <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.id)}')"
+              ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>`
+            : `<div class="w-full h-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18"/>
+              </svg>
+            </div>`
+        }
+      </div>
+
+      <div class="flex-1 min-w-0 flex flex-col">
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-start justify-between gap-2">
+            <p class="${zoom.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
+            <div class="flex flex-col items-end gap-0.5 flex-shrink-0">
+              <span class="badge badge-accent feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
+              ${isEnded ? `<span class="badge ${isSold ? "bg-green-600/20 text-green-400" : "bg-neutral-700 text-neutral-500"} ${zoom.meta}">${isSold ? "SOLD" : "ENDED"}</span>` : ""}
+            </div>
+          </div>
+          ${item.condition ? `<p class="${zoom.meta} text-neutral-400 truncate">${escapeHtml(item.condition)}</p>` : ""}
+        </div>
+        <div class="flex flex-col gap-0.5 mt-auto pt-1">
+          <div class="flex items-center gap-2">
+            ${
+              item.price
+                ? `<span class="${zoom.price} font-semibold text-yellow-400">${escapeHtml(item.price)}</span>`
+                : `<span class="${zoom.meta} text-neutral-400">No price</span>`
+            }
+            ${item.shipping ? `<span class="${zoom.meta} text-neutral-400">${escapeHtml(item.shipping)}</span>` : ""}
+            ${item.bidCount > 0 ? `<span class="${zoom.meta} text-neutral-400">${plural(item.bidCount, "bid")}</span>` : ""}
+          </div>
+          <span class="${zoom.meta} text-neutral-400 feed-age" data-date="${escapeAttr(dateForAge)}">Listed ${timeAgo(dateForAge)}</span>
+          <div class="flex items-center justify-between gap-2">
+            <span class="truncate ${zoom.meta} text-neutral-400">${escapeHtml(item.searchName)}</span>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              ${formatBadges}
+              ${getSiteBadge(item, zoom.meta)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderFeed() {
   const empty = document.getElementById("feed-empty");
   const grid = document.getElementById("feed-grid");
   const countEl = document.getElementById("feed-count");
 
-  if (countEl) countEl.textContent = feedItems.length ? `${feedItems.length} listing${feedItems.length !== 1 ? "s" : ""}` : "";
+  if (countEl) countEl.textContent = feedItems.length ? plural(feedItems.length, "listing") : "";
 
   if (feedItems.length === 0) {
     empty.classList.remove("hidden");
@@ -26,96 +103,10 @@ function renderFeed() {
 
   empty.classList.add("hidden");
   grid.classList.remove("hidden");
-  const zc = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
-  grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zc.minCol}, 1fr))`;
+  const zoom = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
+  grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
 
-  grid.innerHTML = feedItems
-    .map((item, index) => {
-      const zc = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
-      const dateForAge = item.listingDate || item.foundAt;
-      const isNew = Date.now() - new Date(item.foundAt).getTime() < NEW_ITEM_WINDOW_MS;
-      const isEnded = item.listingEndDate && new Date(item.listingEndDate).getTime() < Date.now();
-      const isSold = isEnded && item.bidCount > 0 && (item.buyingFormats || []).includes("Auction");
-      const formats = item.buyingFormats || [];
-      const formatBadges = formats
-        .map((f) => {
-          const clsMap = { Auction: "badge-auction", "Buy It Now": "badge-bin", "Best Offer": "badge-offer" };
-          const cls = clsMap[f] || "badge-default";
-          return `<span class="badge ${cls} ${zc.meta}">${escapeHtml(FORMAT_BADGE_LABELS[f] || f)}</span>`;
-        })
-        .join("");
-
-      const cardColorStyle = item.cardColor
-        ? `border-color: ${hexToRgba(item.cardColor, 0.75)}; background-image: linear-gradient(135deg, ${hexToRgba(item.cardColor, 0.22)} 0%, ${hexToRgba(item.cardColor, 0.06)} 40%, transparent 65%);`
-        : "";
-      const endedStyle = isEnded ? "opacity: 0.5;" : "";
-
-      return `
-      <div
-        class="card p-3 flex gap-3 cursor-pointer hover:bg-neutral-700/50 animate-fade-in"
-        style="animation-delay: ${Math.min(index, 10) * 30}ms; ${cardColorStyle}${endedStyle}"
-        data-end-date="${escapeAttr(item.listingEndDate || "")}"
-        onclick="openListing('${escapeAttr(item.url)}')"
-        title="${escapeAttr(item.title)}"
-      >
-        <!-- Thumbnail: full card height, square crop -->
-        <div class="${zc.img} flex-shrink-0 rounded-md overflow-hidden bg-neutral-700 relative group">
-          ${
-            item.image
-              ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover object-center" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
-                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.id)}')"
-                ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>`
-              : `<div class="w-full h-full flex items-center justify-center">
-                <svg class="w-6 h-6 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18"/>
-                </svg>
-              </div>`
-          }
-        </div>
-
-        <!-- Info -->
-        <div class="flex-1 min-w-0 flex flex-col">
-          <!-- Top group: title + condition (anchored to top) -->
-          <div class="flex flex-col gap-0.5">
-            <!-- Row 1: Title + NEW/ENDED badges -->
-            <div class="flex items-start justify-between gap-2">
-              <p class="${zc.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
-              <div class="flex flex-col items-end gap-0.5 flex-shrink-0">
-                <span class="badge badge-accent feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
-                ${isEnded ? `<span class="badge ${isSold ? "bg-green-600/20 text-green-400" : "bg-neutral-700 text-neutral-500"} ${zc.meta}">${isSold ? "SOLD" : "ENDED"}</span>` : ""}
-              </div>
-            </div>
-            <!-- Row 2: Condition -->
-            ${item.condition ? `<p class="${zc.meta} text-neutral-400 truncate">${escapeHtml(item.condition)}</p>` : ""}
-          </div>
-          <!-- Bottom group: price, age, search/badges (pushed to bottom) -->
-          <div class="flex flex-col gap-0.5 mt-auto pt-1">
-            <!-- Row 3: Price + P&P -->
-            <div class="flex items-center gap-2">
-              ${
-                item.price
-                  ? `<span class="${zc.price} font-semibold text-yellow-400">${escapeHtml(item.price)}</span>`
-                  : `<span class="${zc.meta} text-neutral-400">No price</span>`
-              }
-              ${item.shipping ? `<span class="${zc.meta} text-neutral-400">${escapeHtml(item.shipping)}</span>` : ""}
-              ${item.bidCount > 0 ? `<span class="${zc.meta} text-neutral-400">${item.bidCount} bid${item.bidCount !== 1 ? "s" : ""}</span>` : ""}
-            </div>
-            <!-- Row 4: Listing Age -->
-            <span class="${zc.meta} text-neutral-400 feed-age" data-date="${escapeAttr(dateForAge)}">Listed ${timeAgo(dateForAge)}</span>
-            <!-- Row 5: Search name + Badges -->
-            <div class="flex items-center justify-between gap-2">
-              <span class="truncate ${zc.meta} text-neutral-400">${escapeHtml(item.searchName)}</span>
-              <div class="flex items-center gap-1 flex-shrink-0">
-                ${formatBadges}
-                ${getSiteBadge(item, zc.meta)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    })
-    .join("");
+  grid.innerHTML = feedItems.map((item, index) => renderFeedCard(item, index, zoom)).join("");
 }
 
 function drawBadgeImage(count) {
@@ -186,7 +177,7 @@ async function openImagePopup(itemId) {
   if (!item || !item.image) return;
 
   // Show the thumbnail immediately so the lightbox opens without delay
-  _lightboxImages = [item.image.replace(/s-l\d+/, "s-l1600")];
+  _lightboxImages = [ebayImageUrl(item.image)];
   _lightboxIndex = 0;
   _lightboxSetImage();
 
@@ -225,7 +216,7 @@ function _lightboxSetImage() {
   const url = _lightboxImages[_lightboxIndex];
   img.src = url;
   img.onerror = () => {
-    img.src = url.replace(/s-l\d+/, "s-l640");
+    img.src = ebayImageUrl(url, 640);
   };
 
   const total = _lightboxImages.length;

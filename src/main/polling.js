@@ -28,6 +28,14 @@ function randomInterval(search, settings) {
 }
 
 /**
+ * Prepend items to the feed, capping at FEED_MAX_SIZE.
+ */
+function pushToFeed(state, items) {
+  state.feed.unshift(...items);
+  if (state.feed.length > FEED_MAX_SIZE) state.feed.splice(FEED_MAX_SIZE);
+}
+
+/**
  * Fetch new listings for a single search and update shared state.
  *
  * @param {Object}   search
@@ -55,8 +63,7 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       const initialCount = search.initialCount > 0 ? Math.min(search.initialCount, newItems.length) : 0;
       if (initialCount > 0) {
         const initialItems = newItems.slice(0, initialCount);
-        state.feed.unshift(...initialItems);
-        if (state.feed.length > FEED_MAX_SIZE) state.feed.splice(FEED_MAX_SIZE);
+        pushToFeed(state, initialItems);
         onNewItems(initialItems, true);
         console.log(`[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen, ${initialCount} added to feed`);
       } else {
@@ -65,8 +72,7 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       onStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
     } else if (newItems.length > 0) {
       console.log(`[${search.source}] [${search.name}] Found ${newItems.length} new listing(s)`);
-      state.feed.unshift(...newItems);
-      if (state.feed.length > FEED_MAX_SIZE) state.feed.splice(FEED_MAX_SIZE);
+      pushToFeed(state, newItems);
       onNewItems(newItems, false);
       onStatus(search.id, { lastFetched: new Date().toISOString(), newCount: newItems.length, error: null });
     } else {

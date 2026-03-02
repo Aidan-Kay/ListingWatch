@@ -4,7 +4,7 @@ const PAGE_META = {
     title: "Feed",
     subtitle: "New listings from all active searches",
     actions: () => `
-      <span id="feed-count" class="text-xs text-neutral-500">${feedItems.length ? `${feedItems.length} listing${feedItems.length !== 1 ? "s" : ""}` : ""}</span>
+      <span id="feed-count" class="text-xs text-neutral-500">${feedItems.length ? plural(feedItems.length, "listing") : ""}</span>
       <div class="flex items-center gap-0.5 p-0.5 bg-neutral-800 rounded-md border border-neutral-700">
         ${["small", "medium", "large"].map((z) => `<button onclick="setFeedZoom('${z}')" title="${z.charAt(0).toUpperCase() + z.slice(1)} cards" class="px-2.5 py-0.5 rounded text-xs transition-colors ${feedZoom === z ? "bg-neutral-700 text-secondary" : "text-neutral-500 hover:text-secondary"}">${z === "small" ? "S" : z === "medium" ? "M" : "L"}</button>`).join("")}
       </div>
@@ -141,18 +141,17 @@ document.addEventListener("keydown", (e) => {
     renderFeed();
     updateFeedBadge();
     if (currentPage !== "feed") {
-      showToast(`${items.length} new listing${items.length > 1 ? "s" : ""} found`, "success");
+      showToast(`${plural(items.length, "new listing")} found`, "success");
     }
   });
 
   // Listen for search status updates
   window.api.onSearchStatus((status) => {
-    const s = searches.find((x) => x.id === status.searchId);
-    if (s) {
-      Object.assign(s, status);
+    const search = searches.find((x) => x.id === status.searchId);
+    if (search) {
+      Object.assign(search, status);
       renderSearches();
     }
     updateStatus();
   });
-
 })();

@@ -128,7 +128,7 @@ async function importData() {
     settings = await window.api.getSettings();
     applySettings();
     renderSearches();
-    showToast(`Imported ${result.searchCount} search${result.searchCount !== 1 ? "es" : ""} and settings`, "success");
+    showToast(`Imported ${plural(result.searchCount, "search", "searches")} and settings`, "success");
   } else {
     showToast(`Import failed: ${result.error}`, "error");
   }
@@ -147,9 +147,9 @@ function updateStatus() {
     text.textContent = "No active searches";
   } else if (errored.length > 0) {
     dot.className = "w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0";
-    text.textContent = `${enabled.length} active · ${errored.length} error${errored.length > 1 ? "s" : ""}`;
+    text.textContent = `${enabled.length} active \u00b7 ${plural(errored.length, "error")}`;
   } else {
     dot.className = "w-2 h-2 rounded-full bg-success-500 flex-shrink-0 animate-pulse";
-    text.textContent = `${enabled.length} active search${enabled.length > 1 ? "es" : ""}`;
+    text.textContent = `${plural(enabled.length, "active search", "active searches")}`;
   }
 }

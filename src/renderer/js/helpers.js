@@ -17,7 +17,7 @@ function getSiteLabel(item) {
 function getSiteBadge(item, zoomClass) {
   const site = getSiteLabel(item);
   if (item.source === "ebay") {
-    const colours = ["#ff343b", "#0c68ca", "#e4a300", "#82be00"];
+    const colours = ["#ff343b", "#0c68ca", "#d19600", "#76ad00"];
     const styledEbay = BRAND_LABELS.ebay
       .split("")
       .map((ch, i) => `<span style="color: ${colours[i]}">${ch}</span>`)
@@ -102,6 +102,15 @@ function timeAgo(isoString) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function plural(n, singular, pluralForm) {
+  return `${n} ${n === 1 ? singular : pluralForm || singular + "s"}`;
+}
+
+function ebayImageUrl(url, size = 1600) {
+  if (!url) return url;
+  return url.replace(/s-l\d+/, `s-l${size}`);
+}
+
 function escapeHtml(str) {
   if (!str) return "";
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -112,7 +121,7 @@ function escapeAttr(str) {
   return String(str).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
-function formatLabel(format) {
+function buyingFormatLabel(format) {
   const labels = { buy_now: "Buy It Now", auction: "Auction", all: "All Listings" };
   return labels[format] || format;
 }
