@@ -99,6 +99,7 @@ function renderSearches() {
   if (searches.length === 0) {
     empty.classList.remove("hidden");
     list.classList.add("hidden");
+    updateFeedFilterSearchOptions();
     return;
   }
 
@@ -110,6 +111,9 @@ function renderSearches() {
     .sort((a, b) => a.name.localeCompare(b.name))
     .map(renderSearchCard)
     .join("");
+
+  // Keep the feed filter's saved-search dropdown in sync with the current search list
+  updateFeedFilterSearchOptions();
 }
 
 async function toggleSearch(id, enabled) {
@@ -147,11 +151,11 @@ async function duplicateSearch(id) {
 
   // Deep-clone via JSON round-trip, then strip runtime-only fields.
   const clone = JSON.parse(JSON.stringify(original));
-  delete clone.id;          // main process will generate a new ID
+  delete clone.id; // main process will generate a new ID
   delete clone.lastFetched;
   delete clone.error;
   clone.name = `${clone.name} (copy)`;
-  clone.enabled = false;    // Start paused to avoid duplicate polling noise
+  clone.enabled = false; // Start paused to avoid duplicate polling noise
 
   searches = await window.api.saveSearch(clone);
   renderSearches();

@@ -5,6 +5,8 @@ let settings = {};
 let currentPage = "feed";
 let newCount = 0;
 let feedZoom = "medium";
+let feedSortOrder = "newest";
+let feedFilters = { text: "", platform: "all", searchId: "all", buyingFormat: "all" };
 
 // Search modal state  (prefixed searchModal to distinguish from future modals)
 let searchModalEnabled = true;

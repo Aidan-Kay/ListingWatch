@@ -87,6 +87,7 @@ async function search(query) {
       condition: item.sizeTitle || null,
       image: item.photo || null,
       images,
+      imageCount: images.length,
       url: item.url,
       buyingFormats: ["Buy It Now"],
       bidCount: 0,

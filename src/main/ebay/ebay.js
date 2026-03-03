@@ -283,12 +283,14 @@ function formatItemPrice(item) {
 }
 
 function collectItemImages(item) {
-  const thumbnail = item.image?.imageUrl || (item.thumbnailImages && item.thumbnailImages[0]?.imageUrl) || null;
+  const thumbnail = item.image?.imageUrl || null;
   const image = thumbnail ? ebayImageUrl(thumbnail, 300) : null;
   const imagesSet = new Set();
   if (item.image?.imageUrl) imagesSet.add(ebayImageUrl(item.image.imageUrl));
-  if (Array.isArray(item.thumbnailImages)) {
-    for (const t of item.thumbnailImages) {
+  // additionalImages contains the extra photos uploaded by the seller.
+  // thumbnailImages is only a small-thumbnail copy of the primary image — not additional photos.
+  if (Array.isArray(item.additionalImages)) {
+    for (const t of item.additionalImages) {
       if (t.imageUrl) imagesSet.add(ebayImageUrl(t.imageUrl));
     }
   }
@@ -339,6 +341,7 @@ function parseApiResults(data, query) {
       condition: item.condition || null,
       image,
       images,
+      imageCount: images.length,
       url: itemUrl,
       buyingFormats,
       bidCount: item.bidCount || 0,

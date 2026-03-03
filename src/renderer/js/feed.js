@@ -2,7 +2,7 @@
 const FORMAT_BADGE_LABELS = { "Buy It Now": "BIN", "Best Offer": "Offer" };
 const ZOOM_CONFIG = {
   small: { minCol: "300px", img: "w-24 h-24", title: "text-xs", price: "text-xs", meta: "text-xs" },
-  medium: { minCol: "380px", img: "w-28 h-28", title: "text-sm", price: "text-sm", meta: "text-xs" },
+  medium: { minCol: "400px", img: "w-28 h-28", title: "text-sm", price: "text-sm", meta: "text-xs" },
   large: { minCol: "480px", img: "w-32 h-32", title: "text-base", price: "text-base", meta: "text-sm" },
 };
 
@@ -29,6 +29,7 @@ function renderFeedCard(item, index, zoom) {
     <div
       class="card p-3 flex gap-3 cursor-pointer hover:bg-neutral-700/50 animate-fade-in"
       style="animation-delay: ${Math.min(index, 10) * 30}ms; ${cardColorStyle}${endedStyle}"
+      data-item-id="${escapeAttr(item.id)}"
       data-end-date="${escapeAttr(item.listingEndDate || "")}"
       onclick="openListing('${escapeAttr(item.url)}')"
       title="${escapeAttr(item.title)}"
@@ -39,7 +40,8 @@ function renderFeedCard(item, index, zoom) {
           item.image
             ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover object-center" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
               <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.id)}')"
-              ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>`
+              ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>
+              ${item.imageCount > 1 ? `<span class="absolute bottom-1 right-1 text-xs text-white bg-black/70 px-1.5 py-0.5 rounded font-medium leading-tight pointer-events-none">${item.imageCount}</span>` : ""}`
             : `<div class="w-full h-full flex items-center justify-center">
               <svg class="w-6 h-6 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18"/>
@@ -83,12 +85,123 @@ function renderFeedCard(item, index, zoom) {
   `;
 }
 
+// ─── Feed Filtering & Sorting ─────────────────────────────────────────────────
+
+/**
+ * Extract a numeric value from a formatted price string (e.g. "£12.99", "Bid: $5.00")
+ * for sorting purposes. Returns Infinity for items with no price (sorts to the end).
+ */
+function parsePriceNumeric(str) {
+  if (!str) return Infinity;
+  const match = str.match(/[\d,]+\.?\d*/);
+  if (!match) return Infinity;
+  return parseFloat(match[0].replace(/,/g, ""));
+}
+
+/**
+ * Returns a filtered copy of `items` based on the current `feedFilters` state.
+ * The backing `feedItems` array is never modified — filters are display-only.
+ */
+function applyFeedFilters(items) {
+  const { text, platform, searchId, buyingFormat } = feedFilters;
+  const hasActiveFilter = text || platform !== "all" || searchId !== "all" || buyingFormat !== "all";
+
+  const activeBadge = document.getElementById("filter-active-badge");
+  if (activeBadge) activeBadge.classList.toggle("hidden", !hasActiveFilter);
+
+  if (!hasActiveFilter) return items;
+
+  const lowerText = text.toLowerCase();
+  return items.filter((item) => {
+    if (text && !item.title.toLowerCase().includes(lowerText)) return false;
+    if (platform !== "all" && item.source !== platform) return false;
+    if (searchId !== "all" && item.searchId !== searchId) return false;
+    if (buyingFormat !== "all" && !(item.buyingFormats || []).includes(buyingFormat)) return false;
+    return true;
+  });
+}
+
+/**
+ * Returns a sorted copy of `items` based on the given sort order.
+ * Does not modify the source array. Price sorting uses raw numeric values;
+ * items with no parseable price sort to the end.
+ */
+function sortFeedItems(items, order) {
+  if (order === "newest") return items; // feedItems is already newest-first
+  const copy = [...items];
+  if (order === "oldest") return copy.reverse();
+  if (order === "price-asc") return copy.sort((a, b) => parsePriceNumeric(a.price) - parsePriceNumeric(b.price));
+  if (order === "price-desc") return copy.sort((a, b) => parsePriceNumeric(b.price) - parsePriceNumeric(a.price));
+  return copy;
+}
+
+/** Update a single feed filter key and re-render the feed. */
+function setFeedFilter(key, value) {
+  feedFilters[key] = value;
+  // Show/hide the clear button when the text filter changes
+  if (key === "text") {
+    const clearBtn = document.getElementById("filter-text-clear");
+    if (clearBtn) clearBtn.classList.toggle("hidden", !value);
+  }
+  renderFeed();
+}
+
+/** Clear the text filter input and re-render. */
+function clearTextFilter() {
+  feedFilters.text = "";
+  const input = document.getElementById("filter-text");
+  if (input) input.value = "";
+  const clearBtn = document.getElementById("filter-text-clear");
+  if (clearBtn) clearBtn.classList.add("hidden");
+  renderFeed();
+}
+
+/** Update the feed sort order and re-render. */
+function setFeedSort(order) {
+  feedSortOrder = order;
+  renderFeed();
+}
+
+/**
+ * Repopulate the saved-search dropdown in the filter bar with the current
+ * list of searches. Call after searches are loaded or mutated.
+ */
+function updateFeedFilterSearchOptions() {
+  const select = document.getElementById("filter-search");
+  if (!select) return;
+  const currentVal = feedFilters.searchId;
+  select.innerHTML = '<option value="all">All Searches</option>';
+  searches.forEach((s) => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = s.name;
+    if (s.id === currentVal) opt.selected = true;
+    select.appendChild(opt);
+  });
+  // If the previously selected search no longer exists, reset to "all"
+  if (feedFilters.searchId !== "all" && !searches.find((s) => s.id === feedFilters.searchId)) {
+    feedFilters.searchId = "all";
+    const filterSearchEl = document.getElementById("filter-search");
+    if (filterSearchEl) filterSearchEl.value = "all";
+    renderFeed();
+  }
+}
+
 function renderFeed() {
   const empty = document.getElementById("feed-empty");
   const grid = document.getElementById("feed-grid");
   const countEl = document.getElementById("feed-count");
 
-  if (countEl) countEl.textContent = feedItems.length ? plural(feedItems.length, "listing") : "";
+  const filtered = applyFeedFilters(feedItems);
+  const sorted = sortFeedItems(filtered, feedSortOrder);
+
+  if (countEl) {
+    if (filtered.length === feedItems.length) {
+      countEl.textContent = feedItems.length ? plural(feedItems.length, "listing") : "";
+    } else {
+      countEl.textContent = feedItems.length ? `${filtered.length} / ${plural(feedItems.length, "listing")}` : "";
+    }
+  }
 
   if (feedItems.length === 0) {
     empty.classList.remove("hidden");
@@ -101,12 +214,21 @@ function renderFeed() {
     return;
   }
 
+  if (sorted.length === 0) {
+    // Items exist but all filtered out — show an appropriate empty state
+    empty.classList.remove("hidden");
+    grid.classList.add("hidden");
+    const subtitle = document.getElementById("feed-empty-subtitle");
+    if (subtitle) subtitle.textContent = "No listings match the current filters";
+    return;
+  }
+
   empty.classList.add("hidden");
   grid.classList.remove("hidden");
   const zoom = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
   grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
 
-  grid.innerHTML = feedItems.map((item, index) => renderFeedCard(item, index, zoom)).join("");
+  grid.innerHTML = sorted.map((item, index) => renderFeedCard(item, index, zoom)).join("");
 }
 
 function drawBadgeImage(count) {
@@ -153,36 +275,60 @@ async function clearFeed() {
 
 /**
  * Prepend only newly-arrived items to the feed grid, avoiding a full rebuild.
- * Falls back to a full renderFeed() if the grid is currently empty/hidden.
+ * Falls back to a full renderFeed() when:
+ *   - The grid was previously empty (first items ever).
+ *   - A non-default sort order is active (items may not belong at the top).
+ * When filters are active, only matching items are added to the DOM; all items
+ * are still stored in `feedItems` so they appear when filters are cleared.
  */
 function prependFeedItems(newItems) {
-  const empty = document.getElementById("feed-empty");
-  const grid = document.getElementById("feed-grid");
-  const countEl = document.getElementById("feed-count");
-  if (countEl) countEl.textContent = feedItems.length ? plural(feedItems.length, "listing") : "";
-
   if (!newItems.length) return;
 
-  // If the feed was empty before, do a full render to show the grid and hide empty state.
+  // Non-default sort: new items may not belong at the top — rebuild the whole feed.
+  if (feedSortOrder !== "newest") {
+    renderFeed();
+    return;
+  }
+
+  // Feed was empty before these items arrived — full render to unhide the grid.
   if (feedItems.length === newItems.length) {
     renderFeed();
     return;
   }
 
+  // Filter the incoming items — only render those matching active filters.
+  // Items that don't match are already stored in feedItems and will appear when filters clear.
+  const visibleNewItems = applyFeedFilters(newItems);
+
+  // Update the count display
+  const filtered = applyFeedFilters(feedItems);
+  const countEl = document.getElementById("feed-count");
+  if (countEl) {
+    countEl.textContent = feedItems.length
+      ? filtered.length === feedItems.length
+        ? plural(feedItems.length, "listing")
+        : `${filtered.length} / ${plural(feedItems.length, "listing")}`
+      : "";
+  }
+
+  if (visibleNewItems.length === 0) return; // All new items filtered out — no DOM changes needed
+
+  const empty = document.getElementById("feed-empty");
+  const grid = document.getElementById("feed-grid");
   empty.classList.add("hidden");
   grid.classList.remove("hidden");
   const zoom = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
   grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
 
   const fragment = document.createDocumentFragment();
-  newItems.forEach((item, i) => {
+  visibleNewItems.forEach((item, i) => {
     const wrapper = document.createElement("div");
     wrapper.innerHTML = renderFeedCard(item, i, zoom).trim();
     if (wrapper.firstElementChild) fragment.appendChild(wrapper.firstElementChild);
   });
   grid.prepend(fragment);
 
-  // Trim excess nodes to stay within FEED_MAX_SIZE
+  // Trim excess DOM nodes to stay within FEED_MAX_SIZE
   while (grid.children.length > FEED_MAX_SIZE) {
     grid.removeChild(grid.lastChild);
   }

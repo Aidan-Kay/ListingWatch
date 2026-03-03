@@ -91,6 +91,75 @@
       <main class="flex-1 overflow-hidden flex flex-col">
         <!-- Feed Page -->
         <div id="page-feed" class="page flex-1 flex flex-col overflow-hidden">
+          <!-- Filter Bar: text search, platform, saved search, buying format, sort -->
+          <div
+            id="feed-filter-bar"
+            class="flex-shrink-0 border-b border-neutral-700 bg-neutral-900 px-4 py-2 flex items-center gap-2 flex-wrap"
+          >
+            <!-- Text search -->
+            <div class="relative flex-1 min-w-[150px] max-w-xs">
+              <input
+                id="filter-text"
+                type="text"
+                placeholder="Filter listings..."
+                class="input-field py-1.5 pr-8 text-xs"
+                oninput="setFeedFilter('text', this.value)"
+              />
+              <button
+                id="filter-text-clear"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-secondary hidden"
+                onclick="clearTextFilter()"
+                title="Clear text filter"
+              >
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <!-- Platform filter -->
+            <select
+              id="filter-platform"
+              class="select-field py-1.5 text-xs w-auto"
+              style="min-width: 120px"
+              onchange="setFeedFilter('platform', this.value)"
+            >
+              <option value="all">All Platforms</option>
+              <option value="ebay">eBay</option>
+              <option value="vinted">Vinted</option>
+            </select>
+            <!-- Saved search filter (options populated dynamically by updateFeedFilterSearchOptions) -->
+            <select
+              id="filter-search"
+              class="select-field py-1.5 text-xs w-auto"
+              style="min-width: 130px"
+              onchange="setFeedFilter('searchId', this.value)"
+            >
+              <option value="all">All Searches</option>
+            </select>
+            <!-- Buying format filter -->
+            <select
+              id="filter-format"
+              class="select-field py-1.5 text-xs w-auto"
+              style="min-width: 120px"
+              onchange="setFeedFilter('buyingFormat', this.value)"
+            >
+              <option value="all">All Formats</option>
+              <option value="Auction">Auction</option>
+              <option value="Buy It Now">Buy It Now</option>
+            </select>
+            <!-- Sort order -->
+            <div class="ml-auto flex items-center gap-1.5 flex-shrink-0">
+              <span class="text-xs text-neutral-500">Sort:</span>
+              <select id="feed-sort" class="select-field py-1.5 text-xs w-auto" style="min-width: 140px" onchange="setFeedSort(this.value)">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="price-asc">Price: Low → High</option>
+                <option value="price-desc">Price: High → Low</option>
+              </select>
+            </div>
+            <!-- Active filter indicator -->
+            <span id="filter-active-badge" class="hidden text-xs font-medium text-accent-500 flex-shrink-0">● Filtered</span>
+          </div>
           <div id="feed-container" class="flex-1 overflow-y-auto p-4">
             <!-- Empty state -->
             <div id="feed-empty" class="flex flex-col items-center justify-center h-full text-center">

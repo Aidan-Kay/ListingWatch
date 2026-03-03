@@ -15,8 +15,12 @@ Built with [Electron](https://www.electronjs.org/) and [Tailwind CSS](https://ta
 - **eBay-specific filters** — Category, item location, buying format (Auction / Buy It Now), item condition, and category-specific filters (e.g. Brand, Colour)
 - **Vinted-specific filters** — Category ID and category-specific filters (e.g. `video_game_platform_ids`)
 - **Customisable refresh intervals** — Global and per-search minimum/maximum poll intervals (randomised to avoid rate-limit patterns)
-- **Windows notifications** — Native toast notifications for new listings, configurable per buying format and per search
+- **Windows notifications** — Native toast notifications for new listings, configurable per buying format and per search. Clicking a notification focuses the app and scrolls to the relevant listing(s)
 - **Per-search card colours** — Colour-code searches for at-a-glance identification in the feed
+- **Feed filtering** — Filter bar with live text search, platform select, saved-search select, and buying-format select; all filters are session-only and can be combined freely
+- **Feed sorting** — Sort by Newest First (default), Oldest First, Price: Low → High, or Price: High → Low
+- **Image count badge** — Thumbnail overlay shows the total image count for each listing
+- **Search duplication** — One-click clone of an existing search (starts paused)
 - **Export / Import** — Back up and restore all searches and settings as a JSON file
 - **Taskbar badge** — Unread new-listing count shown in the Windows taskbar
 
