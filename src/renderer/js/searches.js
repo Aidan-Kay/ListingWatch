@@ -12,7 +12,9 @@ function renderSearchCard(search) {
     : "";
 
   return `
-    <div class="card p-4 flex items-center gap-4 cursor-pointer" style="${searchCardColorStyle}" onclick="openSearchModal('${escapeAttr(search.id)}')">
+    <div
+      data-search-id="${escapeAttr(search.id)}"
+      class="card p-4 flex items-center gap-4 cursor-pointer" style="${searchCardColorStyle}" onclick="openSearchModal('${escapeAttr(search.id)}')">
       <!-- Status dot -->
       <div class="flex-shrink-0">
         <div class="w-2.5 h-2.5 rounded-full ${search.enabled ? (hasError ? "bg-danger-500" : "bg-success-500") : "bg-neutral-600"}"></div>
@@ -109,6 +111,19 @@ async function toggleSearchNotify(id, notify) {
   searches = await window.api.toggleNotify(id, notify);
   renderSearches();
   showToast(`Notifications ${notify ? "enabled" : "disabled"} for search`, "info");
+}
+
+/**
+ * Re-render a single search card in-place rather than rebuilding the full list.
+ * Falls back to a full renderSearches() if the card element isn’t found in the DOM.
+ */
+function updateSearchCard(search) {
+  const el = document.querySelector(`[data-search-id="${CSS.escape(search.id)}"]`);
+  if (!el) {
+    renderSearches();
+    return;
+  }
+  el.outerHTML = renderSearchCard(search);
 }
 
 async function deleteSearch(id) {

@@ -3,6 +3,10 @@
 // dropdowns in the search modal, and keeps currentCategoryTree in sync.
 // Depends on: state.js (currentCategoryTree), helpers.js (escapeHtml)
 
+// Renderer-side cache: avoids repeated IPC round-trips when the same site's
+// modal is opened multiple times. The main process already has a 7-day disk cache.
+const _categoryTreeCache = {};
+
 async function loadCategoryTreeForModal(site, currentCategoryId) {
   const l1 = document.getElementById("modal-category-l1");
   const l2 = document.getElementById("modal-category-l2");
@@ -13,12 +17,18 @@ async function loadCategoryTreeForModal(site, currentCategoryId) {
   l2.classList.add("hidden");
 
   try {
-    const result = await window.api.getCategoryTree(site);
-    if (!result.ok) {
-      l1.innerHTML = `<option value="">⚠ ${escapeHtml(result.error || "Failed to load")}</option>`;
-      return;
+    if (_categoryTreeCache[site]) {
+      // Serve from renderer-side cache — no IPC needed.
+      currentCategoryTree = _categoryTreeCache[site];
+    } else {
+      const result = await window.api.getCategoryTree(site);
+      if (!result.ok) {
+        l1.innerHTML = `<option value="">⚠ ${escapeHtml(result.error || "Failed to load")}</option>`;
+        return;
+      }
+      currentCategoryTree = result.categories;
+      _categoryTreeCache[site] = result.categories;
     }
-    currentCategoryTree = result.categories;
 
     // Populate L1 (depth=1) sorted alphabetically
     const topLevel = currentCategoryTree.filter((c) => c.depth === 1).sort((a, b) => a.name.localeCompare(b.name));

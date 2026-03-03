@@ -15,7 +15,8 @@ class Item {
     this.photo = data.photo?.url ?? null;
     this.url = data.url;
 
-    const ts = data.photo?.high_resolution?.timestamp ?? null;
+    // Prefer the listing's own creation timestamp; fall back to photo upload time.
+    const ts = data.created_at_ts ?? data.photo?.high_resolution?.timestamp ?? null;
     this.createdAtTs = ts != null ? new Date(ts * 1000) : null;
     this.rawTimestamp = ts;
   }

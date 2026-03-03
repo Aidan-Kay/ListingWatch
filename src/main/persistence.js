@@ -56,7 +56,12 @@ function encryptField(value) {
  */
 function decryptField(value) {
   if (!value || !safeStorage.isEncryptionAvailable()) return value;
-  return safeStorage.decryptString(Buffer.from(value, "base64"));
+  try {
+    return safeStorage.decryptString(Buffer.from(value, "base64"));
+  } catch (e) {
+    console.error("Failed to decrypt credential field — clearing it to prevent startup crash:", e.message);
+    return "";
+  }
 }
 
 function loadSettings() {

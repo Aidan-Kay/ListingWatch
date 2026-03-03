@@ -82,7 +82,7 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
         }
       }
     } else {
-      search.id = `search_${Date.now()}`;
+      search.id = `search_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       search.enabled = search.enabled !== false;
       search.lastFetched = null;
       search.error = null;
@@ -97,9 +97,8 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
 
   ipcMain.handle("delete-search", (_event, id) => {
     stopSearch(id, state);
-    for (const seenId of [...state.seenIds]) {
-      if (seenId.startsWith(`${id}_`)) state.seenIds.delete(seenId);
-    }
+    // Per-search seenIds — O(1) delete rather than O(n) prefix scan
+    delete state.seenIds[id];
     // Mutate in-place to preserve the shared reference used by polling.js
     for (let i = state.feed.length - 1; i >= 0; i--) {
       if (state.feed[i].searchId === id) state.feed.splice(i, 1);
@@ -167,7 +166,16 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
 
   // ─── Browser ────────────────────────────────────────────────────────────────
   ipcMain.handle("open-external", (_event, url) => {
-    shell.openExternal(url);
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        console.warn("[security] Blocked open-external for non-http(s) URL:", url);
+        return;
+      }
+      shell.openExternal(url);
+    } catch {
+      console.warn("[security] Invalid URL passed to open-external:", url);
+    }
   });
 
   // ─── eBay Taxonomy ──────────────────────────────────────────────────────────
@@ -237,11 +245,22 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
     try {
       const raw = fs.readFileSync(filePaths[0], "utf8");
       const data = JSON.parse(raw);
-      if (!data.searches || !data.settings) throw new Error("Invalid backup file: missing searches or settings.");
+      if (!Array.isArray(data.searches) || typeof data.settings !== "object" || data.settings === null) {
+        throw new Error("Invalid backup file: 'searches' must be an array and 'settings' must be an object.");
+      }
+      for (const s of data.searches) {
+        if (!s.id || !s.name || !s.source) {
+          throw new Error("Invalid backup file: a search entry is missing required fields (id, name, source).");
+        }
+      }
 
       stopAllSearches(state);
 
-      state.searches = data.searches;
+      // Mutate in-place so existing closures in polling.js retain the same array reference.
+      state.searches.splice(0, state.searches.length, ...data.searches);
+      // Clear per-search runtime state for a clean slate after import.
+      state.seenIds = {};
+      state.initialised = {};
       const merged = { ...getSettings(), ...data.settings };
       setSettings(merged);
 

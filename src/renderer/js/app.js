@@ -138,7 +138,7 @@ document.addEventListener("keydown", (e) => {
   window.api.onNewListings((items) => {
     feedItems.unshift(...items);
     newCount += items.length;
-    renderFeed();
+    prependFeedItems(items);
     updateFeedBadge();
     if (currentPage !== "feed") {
       showToast(`${plural(items.length, "new listing")} found`, "success");
@@ -150,7 +150,7 @@ document.addEventListener("keydown", (e) => {
     const search = searches.find((x) => x.id === status.searchId);
     if (search) {
       Object.assign(search, status);
-      renderSearches();
+      updateSearchCard(search);
     }
     updateStatus();
   });

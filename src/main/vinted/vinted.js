@@ -1,6 +1,6 @@
 "use strict";
 
-const { requester } = require("./lib/requester");
+const { getRequester } = require("./lib/requester");
 const { Item } = require("./lib/item");
 const { CURRENCY_SYMBOLS } = require("../shared/constants");
 
@@ -23,7 +23,7 @@ const VINTED_DOMAINS = {
 // ─── Search ───────────────────────────────────────────────────────────────────
 async function search(query) {
   const domain = VINTED_DOMAINS[query.site] || "www.vinted.co.uk";
-  requester.setLocale(domain);
+  const requester = getRequester(domain);
 
   const apiUrl = `https://${domain}${VINTED_API_URL}/${VINTED_PRODUCTS_ENDPOINT}`;
 
@@ -58,7 +58,12 @@ async function search(query) {
     throw new Error(`Vinted API returned status ${response.status}`);
   }
 
-  return response.data.items.map((raw) => {
+  const items = response.data?.items;
+  if (!Array.isArray(items)) {
+    console.warn(`[vinted] [${query.name}] Unexpected API response shape:`, JSON.stringify(response.data).slice(0, 200));
+    return [];
+  }
+  return items.map((raw) => {
     const item = new Item(raw);
     const currencySymbol = CURRENCY_SYMBOLS[item.currency] || item.currency + " ";
     const price = item.price ? `${currencySymbol}${parseFloat(item.price).toFixed(2)}` : null;
@@ -95,7 +100,7 @@ async function search(query) {
 // Fetch all images for a single Vinted listing via the item detail API
 async function getItemImages(itemId, site) {
   const domain = VINTED_DOMAINS[site] || "www.vinted.co.uk";
-  requester.setLocale(domain);
+  const requester = getRequester(domain);
 
   const apiUrl = `https://${domain}${VINTED_API_URL}/items/${itemId}`;
   const response = await requester.get(apiUrl);

@@ -49,14 +49,19 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
     const items = search.source === "vinted" ? await vinted.search(search) : await ebay.search(search);
 
     const isInit = !state.initialised[search.id];
+    // Per-search seen-ID set: O(1) lookup/add, O(1) delete when search is removed.
+    const searchSeenIds = (state.seenIds[search.id] ??= new Set());
     const newItems = [];
 
     for (const item of items) {
-      if (!state.seenIds.has(item.id)) {
-        state.seenIds.add(item.id);
+      if (!searchSeenIds.has(item.itemId)) {
+        searchSeenIds.add(item.itemId);
         newItems.push(item);
       }
     }
+
+    // Reset consecutive-error counter on any successful fetch.
+    if (search._errorCount) search._errorCount = 0;
 
     if (isInit) {
       state.initialised[search.id] = true;
@@ -80,6 +85,8 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
     }
   } catch (err) {
     console.error(`[${search.source}] [${search.name}] Fetch error:`, err.message);
+    // Increment error counter so scheduleNext can apply exponential backoff.
+    search._errorCount = (search._errorCount || 0) + 1;
     onStatus(search.id, { error: err.message });
   }
 }
@@ -101,8 +108,17 @@ function scheduleSearch(search, state, onNewItems, onStatus, getSettings) {
     function scheduleNext() {
       const current = state.searches.find((s) => s.id === search.id);
       if (!current || !current.enabled) return;
-      const delay = randomInterval(current, getSettings());
-      console.log(`[${current.source}] [${current.name}] Next fetch in ${Math.round(delay / 1000)}s`);
+      // Exponential back-off when consecutive errors accumulate (max 16× normal interval).
+      const errorCount = current._errorCount || 0;
+      const backoffMultiplier = Math.min(Math.pow(2, errorCount), 16);
+      const delay = randomInterval(current, getSettings()) * backoffMultiplier;
+      if (errorCount > 0) {
+        console.warn(
+          `[${current.source}] [${current.name}] ${errorCount} consecutive error(s) — backing off. Next fetch in ${Math.round(delay / 1000)}s`,
+        );
+      } else {
+        console.log(`[${current.source}] [${current.name}] Next fetch in ${Math.round(delay / 1000)}s`);
+      }
       state.timers[search.id] = setTimeout(async () => {
         const latest = state.searches.find((s) => s.id === search.id);
         if (latest && latest.enabled) {

@@ -38,9 +38,11 @@ contextBridge.exposeInMainWorld("api", {
 
   // Events from main -> renderer
   onNewListings: (callback) => {
+    ipcRenderer.removeAllListeners("new-listings");
     ipcRenderer.on("new-listings", (_event, listings) => callback(listings));
   },
   onSearchStatus: (callback) => {
+    ipcRenderer.removeAllListeners("search-status");
     ipcRenderer.on("search-status", (_event, status) => callback(status));
   },
 });

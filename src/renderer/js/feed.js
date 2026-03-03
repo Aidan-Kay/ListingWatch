@@ -151,6 +151,43 @@ async function clearFeed() {
   showToast("Feed cleared", "info");
 }
 
+/**
+ * Prepend only newly-arrived items to the feed grid, avoiding a full rebuild.
+ * Falls back to a full renderFeed() if the grid is currently empty/hidden.
+ */
+function prependFeedItems(newItems) {
+  const empty = document.getElementById("feed-empty");
+  const grid = document.getElementById("feed-grid");
+  const countEl = document.getElementById("feed-count");
+  if (countEl) countEl.textContent = feedItems.length ? plural(feedItems.length, "listing") : "";
+
+  if (!newItems.length) return;
+
+  // If the feed was empty before, do a full render to show the grid and hide empty state.
+  if (feedItems.length === newItems.length) {
+    renderFeed();
+    return;
+  }
+
+  empty.classList.add("hidden");
+  grid.classList.remove("hidden");
+  const zoom = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
+  grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
+
+  const fragment = document.createDocumentFragment();
+  newItems.forEach((item, i) => {
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = renderFeedCard(item, i, zoom).trim();
+    if (wrapper.firstElementChild) fragment.appendChild(wrapper.firstElementChild);
+  });
+  grid.prepend(fragment);
+
+  // Trim excess nodes to stay within FEED_MAX_SIZE
+  while (grid.children.length > FEED_MAX_SIZE) {
+    grid.removeChild(grid.lastChild);
+  }
+}
+
 function setFeedZoom(zoom) {
   feedZoom = zoom;
   renderFeed();

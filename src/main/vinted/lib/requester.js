@@ -8,10 +8,13 @@ const { isTransientError } = require("../../shared/retry");
 const REQUEST_TIMEOUT_MS = 20000;
 
 class Requester {
-  constructor() {
+  /**
+   * @param {string} domain  e.g. "www.vinted.co.uk"
+   */
+  constructor(domain = "www.vinted.co.uk") {
     this.MAX_RETRIES = 3;
     this.RETRY_BASE_DELAY_MS = 1000;
-    this.VINTED_AUTH_URL = "https://www.vinted.fr/";
+    this.VINTED_AUTH_URL = `https://${domain}/`;
     this._cookiesFetched = false;
 
     this._cookiesFetchingPromise = null; // deduplicates concurrent setCookies() calls
@@ -42,21 +45,6 @@ class Requester {
       Referer: "https://www.google.com/",
       Connection: "keep-alive",
       "Upgrade-Insecure-Requests": "1",
-    };
-  }
-
-  /**
-   * Update the locale (domain) used for requests.
-   * @param {string} locale  e.g. "www.vinted.co.uk"
-   */
-  setLocale(locale) {
-    const newUrl = `https://${locale}/`;
-    if (newUrl === this.VINTED_AUTH_URL) return; // same locale, keep existing cookies
-    this.VINTED_AUTH_URL = newUrl;
-    this._cookiesFetched = false;
-    this._cookiesFetchingPromise = null; // invalidate any in-flight auth for the old locale
-    this._client.defaults.headers.common = {
-      ...this._buildHeaders(),
     };
   }
 
@@ -130,7 +118,20 @@ class Requester {
   }
 }
 
-// Singleton – one shared requester instance across the app.
-const requester = new Requester();
+// Per-domain requester pool — eliminates cookie/locale race conditions when
+// multiple Vinted searches target different country sites concurrently.
+const _requesters = new Map();
 
-module.exports = { Requester, requester };
+/**
+ * Return (or create) a Requester for the given domain.
+ * @param {string} domain  e.g. "www.vinted.co.uk"
+ * @returns {Requester}
+ */
+function getRequester(domain) {
+  if (!_requesters.has(domain)) {
+    _requesters.set(domain, new Requester(domain));
+  }
+  return _requesters.get(domain);
+}
+
+module.exports = { Requester, getRequester };

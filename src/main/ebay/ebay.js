@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { CURRENCY_SYMBOLS } = require("../shared/constants");
-const { withRetry } = require("../shared/retry");
+const { withRetry, isTransientError } = require("../shared/retry");
 
 const MARKETPLACE_IDS = {
   US: "EBAY_US",
@@ -215,7 +215,6 @@ function buildSearchFilters(query, currency) {
 }
 
 async function search(query) {
-  const token = await getAccessToken();
   const marketplaceId = MARKETPLACE_IDS[query.site] || "EBAY_US";
   const currency = CURRENCY_CODES[query.site] || "USD";
 
@@ -243,6 +242,9 @@ async function search(query) {
 
   const data = await withRetry(
     async () => {
+      // Re-acquire token on each attempt so a mid-request 401 (stale token) is
+      // automatically recovered on the next retry after invalidation.
+      const token = await getAccessToken();
       const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -251,6 +253,12 @@ async function search(query) {
         signal: AbortSignal.timeout(15000),
       });
 
+      if (res.status === 401) {
+        invalidateToken();
+        const err = new Error("eBay token rejected mid-search (401) — will retry with fresh token");
+        err.status = 401;
+        throw err;
+      }
       if (!res.ok) {
         const text = await res.text();
         const err = new Error(`eBay API ${res.status}: ${text.slice(0, 200)}`);
@@ -260,7 +268,7 @@ async function search(query) {
 
       return await res.json();
     },
-    { retries: 3, label: `ebay:search:${query.name}` },
+    { retries: 3, shouldRetry: (err) => err.status === 401 || isTransientError(err), label: `ebay:search:${query.name}` },
   );
 
   return parseApiResults(data, query);

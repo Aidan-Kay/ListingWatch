@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, screen } = require("electron");
 const path = require("path");
 const log = require("electron-log/main");
 
@@ -21,7 +21,7 @@ const { startAllSearches, stopAllSearches } = require("./polling");
 const state = {
   searches: [], // Array of search config objects
   feed: [], // Array of listing items  { id, searchId, … }
-  seenIds: new Set(), // Global item-ID dedup set
+  seenIds: {}, // Record<searchId, Set<itemId>> — per-search dedup sets (avoids O(n) prefix scan on delete)
   initialised: {}, // searchId → bool (has first fetch occurred)
   timers: {}, // searchId → setTimeout handle
 };
@@ -38,11 +38,28 @@ const getWindow = () => mainWindow;
 // ─── Window ───────────────────────────────────────────────────────────────────
 function createWindow() {
   const saved = loadWindowState();
+
+  // Validate saved position is within a visible display (handles disconnected monitors).
+  let winX = saved?.x;
+  let winY = saved?.y;
+  if (winX != null && winY != null) {
+    const displays = screen.getAllDisplays();
+    const visible = displays.some((d) => {
+      const b = d.bounds;
+      return winX >= b.x && winY >= b.y && winX < b.x + b.width && winY < b.y + b.height;
+    });
+    if (!visible) {
+      winX = undefined;
+      winY = undefined;
+      console.warn("[window] Saved position was off-screen — resetting to default.");
+    }
+  }
+
   mainWindow = new BrowserWindow({
     width: saved?.width ?? 1500,
     height: saved?.height ?? 1100,
-    x: saved?.x,
-    y: saved?.y,
+    x: winX,
+    y: winY,
     minWidth: 800,
     minHeight: 600,
     backgroundColor: "#171717",
@@ -61,8 +78,10 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
-  mainWindow.on("resize", () => saveWindowState(mainWindow));
-  mainWindow.on("move", () => saveWindowState(mainWindow));
+  // Use 'resized'/'moved' (fire once after gesture ends) instead of 'resize'/'move'
+  // (fire on every pixel) to avoid hammering disk during continuous drags.
+  mainWindow.on("resized", () => saveWindowState(mainWindow));
+  mainWindow.on("moved", () => saveWindowState(mainWindow));
   mainWindow.on("closed", () => {
     mainWindow = null;
   });

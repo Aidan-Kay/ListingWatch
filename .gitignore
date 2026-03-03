@@ -2,6 +2,9 @@ node_modules/
 release/
 src/renderer/styles/style.css
 
+.md/
+CLAUDE.md
+
 # Secrets / credentials
 .env*
 *.pem
