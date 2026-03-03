@@ -10,4 +10,8 @@ const CURRENCY_SYMBOLS = {
   PLN: "zł",
 };
 
-module.exports = { CURRENCY_SYMBOLS };
+// Maximum number of item IDs tracked per search to prevent unbounded memory growth.
+// V8 Sets preserve insertion order, so the oldest entries are evicted first when pruning.
+const SEEN_IDS_MAX_SIZE = 10_000;
+
+module.exports = { CURRENCY_SYMBOLS, SEEN_IDS_MAX_SIZE };

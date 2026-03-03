@@ -2,6 +2,7 @@
 
 const ebay = require("./ebay/ebay");
 const vinted = require("./vinted/vinted");
+const { SEEN_IDS_MAX_SIZE } = require("./shared/constants");
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const FEED_MAX_SIZE = 500;
@@ -58,6 +59,14 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
         searchSeenIds.add(item.itemId);
         newItems.push(item);
       }
+    }
+
+    // Prune seenIds to cap memory usage. V8 Sets preserve insertion order so
+    // slicing from the end retains the most-recently-seen IDs.
+    if (searchSeenIds.size > SEEN_IDS_MAX_SIZE) {
+      const entries = [...searchSeenIds];
+      state.seenIds[search.id] = new Set(entries.slice(entries.length - SEEN_IDS_MAX_SIZE));
+      console.log(`[polling] [${search.name}] Pruned seenIds from ${entries.length} to ${SEEN_IDS_MAX_SIZE}`);
     }
 
     // Reset consecutive-error counter on any successful fetch.

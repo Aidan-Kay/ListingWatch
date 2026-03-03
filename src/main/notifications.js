@@ -1,6 +1,6 @@
 "use strict";
 
-const { Notification, shell } = require("electron");
+const { Notification } = require("electron");
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DEFAULT_NOTIFY_FORMATS = ["Auction", "Buy It Now"];
@@ -31,6 +31,18 @@ function sendNotifications(items, settings, searches, mainWindow) {
 
   if (filtered.length === 0) return;
 
+  /**
+   * Bring the app window into focus and tell the renderer to scroll to the
+   * relevant listing(s). Works for both minimized and background states.
+   */
+  function focusAndScrollTo(itemIds) {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send("scroll-to-listing", itemIds);
+  }
+
   if (filtered.length === 1) {
     const item = filtered[0];
     const notif = new Notification({
@@ -38,7 +50,7 @@ function sendNotifications(items, settings, searches, mainWindow) {
       body: `${item.searchName}: ${item.title}${item.price ? `  ·  ${item.price}` : ""}`,
       silent: false,
     });
-    notif.on("click", () => shell.openExternal(item.url));
+    notif.on("click", () => focusAndScrollTo([item.id]));
     notif.show();
   } else {
     const notif = new Notification({
@@ -50,6 +62,7 @@ function sendNotifications(items, settings, searches, mainWindow) {
           .join("\n") + (filtered.length > 3 ? `\n…and ${filtered.length - 3} more` : ""),
       silent: false,
     });
+    notif.on("click", () => focusAndScrollTo(filtered.map((i) => i.id)));
     notif.show();
   }
 }

@@ -63,6 +63,17 @@ function renderSearchCard(search) {
           </button>
         </div>
 
+        <!-- Duplicate -->
+        <button
+          onclick="duplicateSearch('${escapeAttr(search.id)}')"
+          title="Duplicate search"
+          class="btn-ghost px-2 py-1.5"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/>
+          </svg>
+        </button>
+
         <!-- Delete -->
         <button
           onclick="deleteSearch('${escapeAttr(search.id)}')"
@@ -124,6 +135,27 @@ function updateSearchCard(search) {
     return;
   }
   el.outerHTML = renderSearchCard(search);
+}
+
+/**
+ * Clone a search with a new ID and " (copy)" suffix. The duplicate starts paused
+ * so it does not immediately begin polling alongside its source.
+ */
+async function duplicateSearch(id) {
+  const original = searches.find((s) => s.id === id);
+  if (!original) return;
+
+  // Deep-clone via JSON round-trip, then strip runtime-only fields.
+  const clone = JSON.parse(JSON.stringify(original));
+  delete clone.id;          // main process will generate a new ID
+  delete clone.lastFetched;
+  delete clone.error;
+  clone.name = `${clone.name} (copy)`;
+  clone.enabled = false;    // Start paused to avoid duplicate polling noise
+
+  searches = await window.api.saveSearch(clone);
+  renderSearches();
+  showToast(`Duplicated "${original.name}"`, "success");
 }
 
 async function deleteSearch(id) {

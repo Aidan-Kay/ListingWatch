@@ -45,4 +45,8 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.removeAllListeners("search-status");
     ipcRenderer.on("search-status", (_event, status) => callback(status));
   },
+  onScrollToListing: (callback) => {
+    ipcRenderer.removeAllListeners("scroll-to-listing");
+    ipcRenderer.on("scroll-to-listing", (_event, itemIds) => callback(itemIds));
+  },
 });

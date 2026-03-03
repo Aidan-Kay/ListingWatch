@@ -154,4 +154,23 @@ document.addEventListener("keydown", (e) => {
     }
     updateStatus();
   });
-})();
+
+  // Scroll the feed to a specific listing when a notification is clicked.
+  // Switches to the feed page and highlights the first matching card.
+  window.api.onScrollToListing((itemIds) => {
+    showPage("feed");
+    if (!Array.isArray(itemIds) || itemIds.length === 0) return;
+
+    // Find the first card that exists in the DOM
+    for (const id of itemIds) {
+      const card = document.querySelector(`[data-item-id="${CSS.escape(id)}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("ring-2", "ring-accent-500", "ring-offset-1", "ring-offset-neutral-800");
+        setTimeout(() => {
+          card.classList.remove("ring-2", "ring-accent-500", "ring-offset-1", "ring-offset-neutral-800");
+        }, 2500);
+        break;
+      }
+    }
+  });})();
