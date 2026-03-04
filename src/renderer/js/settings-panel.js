@@ -16,7 +16,7 @@ function applySettings() {
 
   // Appearance
   feedZoom = settings.feedZoom || "medium";
-  selectAccentColor(settings.accentColor || "#f97316");
+  selectAccentColor(settings.accentColor || DEFAULT_ACCENT_COLOR);
 }
 
 let _settingsSaveTimer = null;
@@ -38,7 +38,7 @@ async function autoSaveSettings() {
   if (document.getElementById("notif-auction").checked) notifyFormats.push("Auction");
   if (document.getElementById("notif-buy-it-now").checked) notifyFormats.push("Buy It Now");
   const notifyWhenFocused = document.getElementById("notif-when-focused").checked;
-  const accentColor = document.getElementById("setting-accent-color").value || "#f97316";
+  const accentColor = document.getElementById("setting-accent-color").value || DEFAULT_ACCENT_COLOR;
 
   const minimizeToTray = document.getElementById("setting-minimize-to-tray").checked;
 

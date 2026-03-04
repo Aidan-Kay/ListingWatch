@@ -44,7 +44,7 @@ function darkenHex(hex, factor = 0.82) {
 }
 
 function applyAccentColor(color) {
-  if (!color) color = "#f97316";
+  if (!color) color = DEFAULT_ACCENT_COLOR;
   const dark = darkenHex(color);
   const rgba20 = hexToRgba(color, 0.2);
   let style = document.getElementById("accent-override");

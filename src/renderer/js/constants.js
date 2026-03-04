@@ -58,6 +58,9 @@ const EBAY_CATEGORY_URLS = {
   IT: "https://www.ebay.it/n/all-categories",
 };
 
+// Default accent colour used when no user preference has been saved
+const DEFAULT_ACCENT_COLOR = "#7d8efc";
+
 // Polling / feed limits (mirrors main-process constants)
 const FEED_MAX_SIZE = 500;
 const NEW_ITEM_WINDOW_MS = 60_000; // 1 minute — threshold for "NEW" badge
