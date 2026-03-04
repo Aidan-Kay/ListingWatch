@@ -9,12 +9,15 @@ const userDataPath = app.getPath("userData");
 const searchesFile = path.join(userDataPath, "searches.json");
 const settingsFile = path.join(userDataPath, "settings.json");
 const windowStateFile = path.join(userDataPath, "window-state.json");
+const favouritesFile = path.join(userDataPath, "favourites.json");
 
 // ─── Searches ─────────────────────────────────────────────────────────────────
 function loadSearches() {
   try {
     if (fs.existsSync(searchesFile)) {
-      return JSON.parse(fs.readFileSync(searchesFile, "utf8"));
+      const parsed = JSON.parse(fs.readFileSync(searchesFile, "utf8"));
+      // Strip transient runtime fields that may have been persisted in older versions
+      return parsed.map(({ error: _ignored, ...rest }) => rest);
     }
   } catch (e) {
     console.error("Failed to load searches:", e);
@@ -22,9 +25,17 @@ function loadSearches() {
   return [];
 }
 
+// Runtime-only fields that should never be written to disk
+const SEARCH_RUNTIME_FIELDS = ["error", "_errorCount", "_pollTimer"];
+
 function saveSearches(searches) {
   try {
-    fs.writeFileSync(searchesFile, JSON.stringify(searches, null, 2), "utf8");
+    const sanitised = searches.map((s) => {
+      const copy = { ...s };
+      SEARCH_RUNTIME_FIELDS.forEach((f) => delete copy[f]);
+      return copy;
+    });
+    fs.writeFileSync(searchesFile, JSON.stringify(sanitised, null, 2), "utf8");
   } catch (e) {
     console.error("Failed to save searches:", e);
   }
@@ -37,6 +48,7 @@ const DEFAULT_SETTINGS = {
   clientId: "",
   clientSecret: "",
   notifyFormats: ["Auction", "Buy It Now"],
+  minimizeToTray: true,
 };
 
 const CREDENTIAL_FIELDS = ["clientId", "clientSecret"];
@@ -102,6 +114,26 @@ function saveSettings(settings) {
   }
 }
 
+// ─── Favourites ─────────────────────────────────────────────────────────────
+function loadFavourites() {
+  try {
+    if (fs.existsSync(favouritesFile)) {
+      return JSON.parse(fs.readFileSync(favouritesFile, "utf8"));
+    }
+  } catch (e) {
+    console.error("Failed to load favourites:", e);
+  }
+  return [];
+}
+
+function saveFavourites(items) {
+  try {
+    fs.writeFileSync(favouritesFile, JSON.stringify(items, null, 2), "utf8");
+  } catch (e) {
+    console.error("Failed to save favourites:", e);
+  }
+}
+
 // ─── Window State ─────────────────────────────────────────────────────────────
 function loadWindowState() {
   try {
@@ -135,4 +167,6 @@ module.exports = {
   saveSettings,
   loadWindowState,
   saveWindowState,
+  loadFavourites,
+  saveFavourites,
 };

@@ -4,7 +4,7 @@ const { ipcMain, shell, dialog, nativeImage } = require("electron");
 const fs = require("fs");
 const ebay = require("./ebay/ebay");
 const vinted = require("./vinted/vinted");
-const { saveSearches, saveSettings } = require("./persistence");
+const { saveSearches, saveSettings, loadFavourites, saveFavourites } = require("./persistence");
 const { scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = require("./polling");
 const { sendNotifications } = require("./notifications");
 
@@ -38,8 +38,9 @@ function updateTaskbarBadge(count, dataUrl, mainWindow) {
 
 /**
  * Create onNewItems / onStatus callbacks wired up to the window and shared state.
+ * @param {Function} [getTray] - Optional () => Tray|null for tooltip updates.
  */
-function makeCallbacks(state, getSettings, getWindow) {
+function makeCallbacks(state, getSettings, getWindow, getTray) {
   function onNewItems(items, isInit) {
     const win = getWindow();
     if (win && !win.isDestroyed()) {
@@ -47,6 +48,12 @@ function makeCallbacks(state, getSettings, getWindow) {
     }
     if (!isInit) {
       sendNotifications(items, getSettings(), state.searches, win);
+    }
+    // Update tray tooltip with current feed size when new items arrive.
+    const t = getTray && getTray();
+    if (t && !t.isDestroyed()) {
+      const n = state.feed.length;
+      t.setToolTip(`ListingWatch \u00b7 ${n} listing${n !== 1 ? "s" : ""} in feed`);
     }
   }
 
@@ -64,13 +71,14 @@ function makeCallbacks(state, getSettings, getWindow) {
  * @param {Function} getSettings - () => settings
  * @param {Function} setSettings - (newSettings) => void
  * @param {Function} getWindow   - () => BrowserWindow|null
+ * @param {Function} [getTray]   - () => Tray|null (optional, for tooltip updates)
  */
-function setupIpc(state, getSettings, setSettings, getWindow) {
+function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   // ─── Searches ───────────────────────────────────────────────────────────────
   ipcMain.handle("get-searches", () => state.searches);
 
   ipcMain.handle("save-search", (_event, search) => {
-    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow);
+    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
 
     if (search.id) {
       const idx = state.searches.findIndex((s) => s.id === search.id);
@@ -99,9 +107,28 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
     stopSearch(id, state);
     // Per-search seenIds — O(1) delete rather than O(n) prefix scan
     delete state.seenIds[id];
-    // Mutate in-place to preserve the shared reference used by polling.js
+    // Mutate feed in-place to preserve the shared reference used by polling.js.
+    // For multi-search items (searchIds array), remove just the deleted search's ID;
+    // only remove the item from the feed if it has no remaining search associations.
     for (let i = state.feed.length - 1; i >= 0; i--) {
-      if (state.feed[i].searchId === id) state.feed.splice(i, 1);
+      const item = state.feed[i];
+      const ids = Array.isArray(item.searchIds) ? item.searchIds : [item.searchId];
+      if (ids.includes(id)) {
+        if (ids.length <= 1) {
+          state.feed.splice(i, 1);
+        } else {
+          item.searchIds = ids.filter((s) => s !== id);
+          // If the primary searchId was the deleted search, reassign to the next one.
+          if (item.searchId === id) {
+            item.searchId = item.searchIds[0];
+            const replacement = state.searches.find((x) => x.id === item.searchId);
+            if (replacement) {
+              item.searchName = replacement.name;
+              item.cardColor = replacement.cardColor || null;
+            }
+          }
+        }
+      }
     }
     for (let i = state.searches.length - 1; i >= 0; i--) {
       if (state.searches[i].id === id) state.searches.splice(i, 1);
@@ -114,7 +141,7 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
     const search = state.searches.find((s) => s.id === id);
     if (!search) return state.searches;
     search.enabled = enabled;
-    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow);
+    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
     if (enabled) {
       scheduleSearch(search, state, onNewItems, onStatus, getSettings);
     } else {
@@ -130,6 +157,23 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
     search.notify = notify;
     saveSearches(state.searches);
     return state.searches;
+  });
+
+  // ─── Pause / Resume All ────────────────────────────────────────────────────
+  ipcMain.handle("pause-all", () => {
+    stopAllSearches(state);
+    const t = getTray && getTray();
+    if (t && !t.isDestroyed()) t.setToolTip("ListingWatch \u00b7 Paused");
+  });
+
+  ipcMain.handle("resume-all", () => {
+    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
+    startAllSearches(state, onNewItems, onStatus, getSettings);
+    const t = getTray && getTray();
+    if (t && !t.isDestroyed()) {
+      const n = state.feed.length;
+      t.setToolTip(`ListingWatch \u00b7 ${n} listing${n !== 1 ? "s" : ""} in feed`);
+    }
   });
 
   // ─── Settings ───────────────────────────────────────────────────────────────
@@ -161,7 +205,32 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
   ipcMain.handle("clear-feed", () => {
     state.feed.splice(0); // In-place clear to preserve shared reference
     updateTaskbarBadge(0, null, getWindow());
+    const t = getTray && getTray();
+    if (t && !t.isDestroyed()) t.setToolTip("ListingWatch");
     return state.feed;
+  });
+
+  // ─── Favourites ─────────────────────────────────────────────────────────────
+  // favourites.json stores a snapshot of each favourited item. Load once on
+  // startup (via get-favourites) and persist on every change.
+  ipcMain.handle("get-favourites", () => loadFavourites());
+
+  ipcMain.handle("save-favourite", (_event, item) => {
+    const favourites = loadFavourites();
+    const idx = favourites.findIndex((f) => f.id === item.id);
+    if (idx !== -1) {
+      favourites[idx] = item; // Update existing snapshot
+    } else {
+      favourites.unshift(item); // Prepend so newest favourites appear first
+    }
+    saveFavourites(favourites);
+    return favourites;
+  });
+
+  ipcMain.handle("remove-favourite", (_event, itemId) => {
+    const favourites = loadFavourites().filter((f) => f.id !== itemId);
+    saveFavourites(favourites);
+    return favourites;
   });
 
   // ─── Browser ────────────────────────────────────────────────────────────────
@@ -267,7 +336,7 @@ function setupIpc(state, getSettings, setSettings, getWindow) {
       saveSearches(state.searches);
       saveSettings(merged);
 
-      const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow);
+      const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
       startAllSearches(state, onNewItems, onStatus, getSettings);
 
       ebay.invalidateToken();

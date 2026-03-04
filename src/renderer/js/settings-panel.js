@@ -11,6 +11,9 @@ function applySettings() {
   document.getElementById("notif-buy-it-now").checked = formats.includes("Buy It Now");
   document.getElementById("notif-when-focused").checked = settings.notifyWhenFocused || false;
 
+  // System tray
+  document.getElementById("setting-minimize-to-tray").checked = settings.minimizeToTray !== false;
+
   // Appearance
   feedZoom = settings.feedZoom || "medium";
   selectAccentColor(settings.accentColor || "#f97316");
@@ -37,6 +40,8 @@ async function autoSaveSettings() {
   const notifyWhenFocused = document.getElementById("notif-when-focused").checked;
   const accentColor = document.getElementById("setting-accent-color").value || "#f97316";
 
+  const minimizeToTray = document.getElementById("setting-minimize-to-tray").checked;
+
   settings = await window.api.saveSettings({
     clientId,
     clientSecret,
@@ -46,6 +51,7 @@ async function autoSaveSettings() {
     notifyWhenFocused,
     accentColor,
     feedZoom,
+    minimizeToTray,
   });
   applyAccentColor(settings.accentColor);
 }
@@ -78,6 +84,8 @@ function initSettingsListeners() {
   document.getElementById("notif-auction").addEventListener("change", () => autoSaveSettings());
   document.getElementById("notif-buy-it-now").addEventListener("change", () => autoSaveSettings());
   document.getElementById("notif-when-focused").addEventListener("change", () => autoSaveSettings());
+
+  document.getElementById("setting-minimize-to-tray").addEventListener("change", () => autoSaveSettings());
 }
 
 async function testConnection() {

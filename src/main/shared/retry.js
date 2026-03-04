@@ -44,6 +44,8 @@ function isTransientError(err) {
     err.code === "ECONNRESET" ||
     err.code === "ETIMEDOUT" ||
     err.code === "ECONNABORTED" ||
+    err.code === "ENOTFOUND" ||
+    err.code === "ENETUNREACH" ||
     err.code === "UND_ERR_CONNECT_TIMEOUT"
   ) {
     return true;

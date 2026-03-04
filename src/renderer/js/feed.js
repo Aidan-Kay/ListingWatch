@@ -24,10 +24,11 @@ function renderFeedCard(item, index, zoom) {
     ? `border-color: ${hexToRgba(item.cardColor, 0.75)}; background-image: linear-gradient(135deg, ${hexToRgba(item.cardColor, 0.15)} 0%, ${hexToRgba(item.cardColor, 0.04)} 25%, transparent 40%);`
     : "";
   const endedStyle = isEnded ? "opacity: 0.5;" : "";
+  const isFavourited = favourites.some((f) => f.id === item.id);
 
   return `
     <div
-      class="card p-3 flex gap-3 cursor-pointer hover:bg-neutral-700/50 animate-fade-in"
+      class="card p-3 flex gap-3 cursor-pointer hover:bg-neutral-700/50 animate-fade-in relative"
       style="animation-delay: ${Math.min(index, 10) * 30}ms; ${cardColorStyle}${endedStyle}"
       data-item-id="${escapeAttr(item.id)}"
       data-end-date="${escapeAttr(item.listingEndDate || "")}"
@@ -54,9 +55,18 @@ function renderFeedCard(item, index, zoom) {
         <div class="flex flex-col gap-0.5">
           <div class="flex items-start justify-between gap-2">
             <p class="${zoom.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
-            <div class="flex flex-col items-end gap-0.5 flex-shrink-0">
+            <div class="flex gap-0.5 flex-shrink-0">
               <span class="badge badge-accent feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
               ${isEnded ? `<span class="badge ${isSold ? "bg-green-600/20 text-green-400" : "bg-neutral-700 text-neutral-500"} ${zoom.meta}">${isSold ? "SOLD" : "ENDED"}</span>` : ""}
+              <button
+                class="fav-btn transition-colors z-10 ${isFavourited ? "text-yellow-400" : "text-neutral-400/60 hover:text-yellow-400"}"
+                onclick="event.stopPropagation(); toggleFavourite('${escapeAttr(item.id)}')"
+                title="${isFavourited ? "Remove from favourites" : "Add to favourites"}"
+              >
+                <svg class="w-5 h-5" fill="${isFavourited ? "currentColor" : "none"}" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
+                </svg>
+              </button>
             </div>
           </div>
           ${item.condition ? `<p class="${zoom.meta} text-neutral-400 truncate">${escapeHtml(item.condition)}</p>` : ""}
@@ -73,7 +83,11 @@ function renderFeedCard(item, index, zoom) {
           </div>
           <span class="${zoom.meta} text-neutral-400 feed-age" data-date="${escapeAttr(dateForAge)}">Listed ${timeAgo(dateForAge)}</span>
           <div class="flex items-center justify-between gap-2">
-            <span class="truncate ${zoom.meta} text-neutral-400">${escapeHtml(item.searchName)}</span>
+            <span class="truncate ${zoom.meta} text-neutral-400">${
+              Array.isArray(item.searchIds) && item.searchIds.length > 1
+                ? `<span class="badge bg-neutral-700 text-neutral-400 ${zoom.meta}" title="${escapeAttr(item.searchIds.join(", "))}">${item.searchIds.length} searches</span>`
+                : escapeHtml(item.searchName)
+            }</span>
             <div class="flex items-center gap-1 flex-shrink-0">
               ${formatBadges}
               ${getSiteBadge(item, zoom.meta)}
@@ -115,7 +129,10 @@ function applyFeedFilters(items) {
   return items.filter((item) => {
     if (text && !item.title.toLowerCase().includes(lowerText)) return false;
     if (platform !== "all" && item.source !== platform) return false;
-    if (searchId !== "all" && item.searchId !== searchId) return false;
+    if (searchId !== "all") {
+      const ids = Array.isArray(item.searchIds) ? item.searchIds : [item.searchId];
+      if (!ids.includes(searchId)) return false;
+    }
     if (buyingFormat !== "all" && !(item.buyingFormats || []).includes(buyingFormat)) return false;
     return true;
   });

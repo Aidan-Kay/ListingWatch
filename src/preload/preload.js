@@ -32,6 +32,15 @@ contextBridge.exposeInMainWorld("api", {
   // Taskbar badge
   updateBadge: (count, dataUrl) => ipcRenderer.invoke("update-badge", count, dataUrl),
 
+  // Polling control
+  pauseAll: () => ipcRenderer.invoke("pause-all"),
+  resumeAll: () => ipcRenderer.invoke("resume-all"),
+
+  // Favourites
+  getFavourites: () => ipcRenderer.invoke("get-favourites"),
+  saveFavourite: (item) => ipcRenderer.invoke("save-favourite", item),
+  removeFavourite: (itemId) => ipcRenderer.invoke("remove-favourite", itemId),
+
   // Export / Import
   exportData: () => ipcRenderer.invoke("export-data"),
   importData: () => ipcRenderer.invoke("import-data"),

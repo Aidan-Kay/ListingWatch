@@ -28,6 +28,14 @@ const PAGE_META = {
     subtitle: "Configure application behaviour",
     actions: () => "",
   },
+  favourites: {
+    title: "Favourites",
+    subtitle: "Your saved listings",
+    actions: () => `
+      <span id="favourites-count" class="text-xs text-neutral-500">${favourites.length ? plural(favourites.length, "listing") : ""}</span>
+      <button onclick="clearFavourites()" class="btn-ghost text-xs">Clear All</button>
+    `,
+  },
 };
 
 function showPage(page) {
@@ -50,6 +58,10 @@ function showPage(page) {
   if (page === "feed") {
     newCount = 0;
     updateFeedBadge();
+  }
+
+  if (page === "favourites") {
+    renderFavourites();
   }
 }
 
@@ -106,7 +118,19 @@ document.addEventListener("keydown", (e) => {
   const lightbox = document.getElementById("image-lightbox");
   const lightboxOpen = lightbox && !lightbox.classList.contains("hidden");
 
-  if (e.key === "Escape") {
+  // Ctrl+F focuses the feed text filter when on the feed page
+  if (e.ctrlKey && e.key === "f" && !lightboxOpen) {
+    const modal = document.getElementById("search-modal");
+    const modalOpen = modal && !modal.classList.contains("hidden");
+    if (!modalOpen && currentPage === "feed") {
+      e.preventDefault();
+      const filterInput = document.getElementById("filter-text");
+      if (filterInput) {
+        filterInput.focus();
+        filterInput.select();
+      }
+    }
+  } else if (e.key === "Escape") {
     if (lightboxOpen) {
       closeImagePopup();
     } else {
@@ -121,11 +145,26 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// ─── Offline Banner ──────────────────────────────────────────────────────────
+function showOfflineBanner(visible) {
+  let banner = document.getElementById("offline-banner");
+  if (!banner && visible) {
+    banner = document.createElement("div");
+    banner.id = "offline-banner";
+    banner.className = "w-full bg-red-600/20 border-b border-red-600/40 text-red-400 text-xs text-center py-1.5 px-3 flex-shrink-0";
+    banner.textContent = "No internet connection — polling is paused until connectivity is restored.";
+    const header = document.querySelector("header");
+    header.insertAdjacentElement("afterend", banner);
+  }
+  if (banner) banner.classList.toggle("hidden", !visible);
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
   searches = await window.api.getSearches();
   feedItems = await window.api.getFeed();
   settings = await window.api.getSettings();
+  favourites = await window.api.getFavourites();
 
   applySettings();
   initSettingsListeners();
@@ -173,4 +212,9 @@ document.addEventListener("keydown", (e) => {
         break;
       }
     }
-  });})();
+  });
+  // Connectivity detection
+  window.addEventListener("offline", () => showOfflineBanner(true));
+  window.addEventListener("online", () => showOfflineBanner(false));
+  if (!navigator.onLine) showOfflineBanner(true);
+})();

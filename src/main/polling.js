@@ -57,6 +57,7 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
     for (const item of items) {
       if (!searchSeenIds.has(item.itemId)) {
         searchSeenIds.add(item.itemId);
+        item.searchIds = [item.searchId]; // Always initialise as single-element array
         newItems.push(item);
       }
     }
@@ -85,10 +86,30 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       }
       onStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
     } else if (newItems.length > 0) {
-      console.log(`[${search.source}] [${search.name}] Found ${newItems.length} new listing(s)`);
-      pushToFeed(state, newItems);
-      onNewItems(newItems, false);
-      onStatus(search.id, { lastFetched: new Date().toISOString(), newCount: newItems.length, error: null });
+      // Cross-search duplicate detection: items already in the feed from a different
+      // search are merged (their searchIds extended) rather than re-announced.
+      const trulyNew = [];
+      for (const item of newItems) {
+        const canonical = `${item.source}:${item.itemId}`;
+        const existing = state.feed.find((f) => `${f.source}:${f.itemId}` === canonical);
+        if (existing) {
+          if (!Array.isArray(existing.searchIds)) existing.searchIds = [existing.searchId];
+          if (!existing.searchIds.includes(item.searchId)) {
+            existing.searchIds.push(item.searchId);
+            console.log(`[${search.source}] [${search.name}] Cross-search duplicate merged: ${item.itemId}`);
+          }
+        } else {
+          trulyNew.push(item);
+        }
+      }
+      if (trulyNew.length > 0) {
+        console.log(`[${search.source}] [${search.name}] Found ${trulyNew.length} new listing(s)`);
+        pushToFeed(state, trulyNew);
+        onNewItems(trulyNew, false);
+        onStatus(search.id, { lastFetched: new Date().toISOString(), newCount: trulyNew.length, error: null });
+      } else {
+        onStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
+      }
     } else {
       onStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
     }
