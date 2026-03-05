@@ -246,6 +246,11 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     return favourites;
   });
 
+  ipcMain.handle("clear-favourites", () => {
+    saveFavourites([]);
+    return [];
+  });
+
   // ─── Sound ───────────────────────────────────────────────────────────
   ipcMain.handle("select-sound-file", async () => {
     const win = getWindow();

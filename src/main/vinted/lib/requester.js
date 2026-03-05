@@ -140,6 +140,7 @@ class VintedClient {
         // Execute fetch from within the browser page context.
         const result = await win.webContents.executeJavaScript(`
           fetch(${JSON.stringify(fullUrl)}, {
+            signal: AbortSignal.timeout(15000),
             headers: {
               "Accept": "application/json, text/plain, */*",
               "Accept-Language": "en-GB,en;q=0.5",
@@ -173,6 +174,7 @@ class VintedClient {
         await new Promise((r) => setTimeout(r, delay));
       }
     }
+    throw new Error(`VintedClient.get: exhausted ${this._maxRetries} retries without a result`);
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────

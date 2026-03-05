@@ -29,8 +29,8 @@ async function toggleFavourite(itemId) {
     favourites.splice(existingIndex, 1);
     await window.api.removeFavourite(itemId);
   } else {
-    // Add to favourites — source item can be in the feed or already a favourite
-    const item = feedItems.find((f) => f.id === itemId);
+    // Add to favourites — source item from the feed or, if evicted, from favourites
+    const item = feedItems.find((f) => f.id === itemId) || favourites.find((f) => f.id === itemId);
     if (!item) return;
     favourites.unshift(item);
     await window.api.saveFavourite(item);
@@ -87,9 +87,7 @@ async function clearFavourites() {
     return;
 
   const formerIds = favourites.map((f) => f.id);
-  for (const item of [...favourites]) {
-    await window.api.removeFavourite(item.id);
-  }
+  await window.api.clearFavourites();
   favourites.length = 0;
 
   // Patch each affected star without re-rendering the whole feed

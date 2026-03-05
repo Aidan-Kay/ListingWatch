@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld("api", {
   getFavourites: () => ipcRenderer.invoke("get-favourites"),
   saveFavourite: (item) => ipcRenderer.invoke("save-favourite", item),
   removeFavourite: (itemId) => ipcRenderer.invoke("remove-favourite", itemId),
+  clearFavourites: () => ipcRenderer.invoke("clear-favourites"),
 
   // Export / Import
   exportData: () => ipcRenderer.invoke("export-data"),

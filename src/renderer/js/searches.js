@@ -183,7 +183,11 @@ async function deleteSearch(id) {
   if (!(await appConfirm(`Delete the search "${search.name}"? This cannot be undone.`, "Delete", true))) return;
 
   searches = await window.api.deleteSearch(id);
-  feedItems = feedItems.filter((item) => item.searchId !== id);
+  // Re-fetch the authoritative feed from the main process rather than applying
+  // our own filter. The main process correctly handles multi-search items
+  // (trimming the deleted search ID instead of removing them outright), and
+  // duplicating that logic in the renderer would create a divergence risk.
+  feedItems = await window.api.getFeed();
   renderSearches();
   renderFeed();
   showToast("Search deleted", "info");

@@ -41,19 +41,31 @@ function sendNotifications(items, settings, searches, mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
-    mainWindow.webContents.send("scroll-to-listing", itemIds);
+    // Delay the IPC message so the renderer has time to wake up from background
+    // throttling before processing the scroll. The window.show() call is
+    // asynchronous on Windows — sending immediately can race the renderer's
+    // repaint cycle and cause scrollIntoView to silently no-op.
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("scroll-to-listing", itemIds);
+      }
+    }, 150);
   }
 
   if (filtered.length === 1) {
     const item = filtered[0];
+    // Suppress the OS chime when sound is disabled, or when a custom file is set
+    // (the renderer plays it directly via HTML5 Audio instead).
+    const suppressOsChime = !settings.notificationSoundEnabled || Boolean(settings.notificationSoundFile);
     const notif = new Notification({
       title: "ListingWatch",
       body: `${item.searchName}: ${item.title}${item.price ? `  ·  ${item.price}` : ""}`,
-      silent: settings.notificationSoundEnabled && settings.notificationSoundFile ? true : !settings.notificationSoundEnabled,
+      silent: suppressOsChime,
     });
     notif.on("click", () => focusAndScrollTo([item.id]));
     notif.show();
   } else {
+    const suppressOsChime = !settings.notificationSoundEnabled || Boolean(settings.notificationSoundFile);
     const notif = new Notification({
       title: "ListingWatch",
       body:
@@ -61,7 +73,7 @@ function sendNotifications(items, settings, searches, mainWindow) {
           .map((i) => `${i.title}${i.price ? ` · ${i.price}` : ""}`)
           .slice(0, 3)
           .join("\n") + (filtered.length > 3 ? `\n…and ${filtered.length - 3} more` : ""),
-      silent: settings.notificationSoundEnabled && settings.notificationSoundFile ? true : !settings.notificationSoundEnabled,
+      silent: suppressOsChime,
     });
     notif.on("click", () => focusAndScrollTo(filtered.map((i) => i.id)));
     notif.show();

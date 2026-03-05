@@ -35,7 +35,7 @@ async function withRetry(fn, options = {}) {
 
 /**
  * Determine whether an error is transient and worth retrying.
- * Handles both fetch() and axios errors.
+ * Handles fetch() errors and Electron-specific renderer errors.
  */
 function isTransientError(err) {
   // Network errors (fetch: TypeError; axios: code === 'ECONNRESET' | 'ETIMEDOUT' etc.)
@@ -54,7 +54,14 @@ function isTransientError(err) {
   if (err.name === "AbortError" || err.name === "TimeoutError") {
     return true;
   }
-  // HTTP status-based (works for both fetch-wrapped errors and axios errors)
+  // Electron renderer-process errors (e.g. BrowserWindow destroyed mid-request)
+  if (
+    err.message &&
+    (err.message.includes("disposed") || err.message.includes("Render frame was disposed") || err.message.includes("ERR_ABORTED"))
+  ) {
+    return true;
+  }
+  // HTTP status-based
   const status = err.status || err.response?.status;
   if (status === 429 || status === 502 || status === 503 || status === 504) {
     return true;

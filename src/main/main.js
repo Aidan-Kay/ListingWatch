@@ -211,6 +211,7 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  ebay.flushApiUsage();
   if (tray) {
     tray.destroy();
     tray = null;

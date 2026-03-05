@@ -18,6 +18,11 @@ function updateFeedSubtitle(filteredCount, totalCount) {
 }
 
 const FORMAT_BADGE_LABELS = { "Buy It Now": "BIN", "Best Offer": "Offer" };
+
+// Cached filtered item count, updated by renderFeed() and incrementally maintained
+// by prependFeedItems() to avoid a full O(n) re-filter on every batch prepend.
+let _filteredCount = 0;
+
 const ZOOM_CONFIG = {
   small: { minCol: "300px", img: "w-24 h-24", title: "text-xs", price: "text-xs", meta: "text-xs" },
   medium: { minCol: "400px", img: "w-28 h-28", title: "text-sm", price: "text-sm", meta: "text-xs" },
@@ -229,7 +234,8 @@ function renderFeed() {
   const filtered = applyFeedFilters(feedItems);
   const sorted = sortFeedItems(filtered, feedSortOrder);
 
-  updateFeedSubtitle(filtered.length, feedItems.length);
+  _filteredCount = filtered.length;
+  updateFeedSubtitle(_filteredCount, feedItems.length);
 
   if (feedItems.length === 0) {
     empty.classList.remove("hidden");
@@ -361,9 +367,9 @@ function prependFeedItems(newItems) {
   // Items that don't match are already stored in feedItems and will appear when filters clear.
   const visibleNewItems = applyFeedFilters(newItems);
 
-  // Update the count display in the page subheading
-  const filtered = applyFeedFilters(feedItems);
-  updateFeedSubtitle(filtered.length, feedItems.length);
+  // Update the count display incrementally — avoids re-filtering all feedItems
+  _filteredCount += visibleNewItems.length;
+  updateFeedSubtitle(_filteredCount, feedItems.length);
 
   if (visibleNewItems.length === 0) return; // All new items filtered out — no DOM changes needed
 
@@ -410,7 +416,7 @@ let _lightboxImages = [];
 let _lightboxIndex = 0;
 
 async function openImagePopup(itemId) {
-  const item = feedItems.find((i) => i.id === itemId);
+  const item = feedItems.find((i) => i.id === itemId) || favourites.find((f) => f.id === itemId);
   if (!item || !item.image) return;
 
   // Show the thumbnail immediately so the lightbox opens without delay

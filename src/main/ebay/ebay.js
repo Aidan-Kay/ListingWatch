@@ -73,6 +73,7 @@ function configure(getSettings, userDataPath) {
 
 // ─── API Call Counter ─────────────────────────────────────────────────────────
 let _usage = null; // lazy-loaded on first call
+let _usageDirty = false; // true when in-memory count hasn't been flushed to disk
 
 function _getTodayUtc() {
   return new Date().toISOString().slice(0, 10);
@@ -90,7 +91,27 @@ function _ensureUsageLoaded() {
 function incrementApiCalls(n = 1) {
   _ensureUsageLoaded();
   _usage.calls += n;
-  saveApiUsage(_usage);
+  // Debounce disk writes: flush at most every 30 seconds to avoid hammering
+  // the filesystem on hot polling paths. The final flush happens on app quit
+  // via flushApiUsage().
+  if (!_usageDirty) {
+    _usageDirty = true;
+    setTimeout(() => {
+      saveApiUsage(_usage);
+      _usageDirty = false;
+    }, 30_000);
+  }
+}
+
+/**
+ * Force an immediate write of the API usage counter to disk.
+ * Call this on app quit to ensure the last batch of increments is persisted.
+ */
+function flushApiUsage() {
+  if (_usage && _usageDirty) {
+    saveApiUsage(_usage);
+    _usageDirty = false;
+  }
 }
 
 function getApiUsage() {
@@ -426,4 +447,14 @@ async function getItemImages(numericId, site) {
   return images;
 }
 
-module.exports = { configure, getAccessToken, invalidateToken, search, loadCategoryTree, getItemImages, getApiUsage, incrementApiCalls };
+module.exports = {
+  configure,
+  getAccessToken,
+  invalidateToken,
+  search,
+  loadCategoryTree,
+  getItemImages,
+  getApiUsage,
+  incrementApiCalls,
+  flushApiUsage,
+};

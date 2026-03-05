@@ -43,7 +43,7 @@ function applySettings() {
 }
 
 let _settingsSaveTimer = null;
-let _settingsSavedTimer = null;
+let _settingsToastTimer = null;
 function debounceSettingsSave(delay = 800) {
   clearTimeout(_settingsSaveTimer);
   _settingsSaveTimer = setTimeout(() => autoSaveSettings(), delay);
@@ -100,19 +100,9 @@ async function autoSaveSettings() {
   });
   applyAccentColor(settings.accentColor);
   updateApiCallEstimate();
-  // Flash a brief "saved" indicator in the Settings page subtitle
-  if (currentPage === "settings") {
-    const subtitleEl = document.getElementById("header-subtitle");
-    if (subtitleEl) {
-      subtitleEl.textContent = "Settings saved ✓";
-      clearTimeout(_settingsSavedTimer);
-      _settingsSavedTimer = setTimeout(() => {
-        if (currentPage === "settings" && subtitleEl) {
-          subtitleEl.textContent = PAGE_META.settings.subtitle;
-        }
-      }, 2000);
-    }
-  }
+  // Debounce the toast so rapid saves (e.g. typing in a text field) only show one.
+  clearTimeout(_settingsToastTimer);
+  _settingsToastTimer = setTimeout(() => showToast("Settings saved", "success"), 400);
 }
 
 /**

@@ -214,18 +214,22 @@ function showOfflineBanner(visible) {
     showPage("feed");
     if (!Array.isArray(itemIds) || itemIds.length === 0) return;
 
-    // Find the first card that exists in the DOM
-    for (const id of itemIds) {
-      const card = document.querySelector(`[data-item-id="${CSS.escape(id)}"]`);
-      if (card) {
-        card.scrollIntoView({ behavior: "smooth", block: "center" });
-        card.classList.add("ring-2", "ring-accent-500", "ring-offset-1", "ring-offset-neutral-800");
-        setTimeout(() => {
-          card.classList.remove("ring-2", "ring-accent-500", "ring-offset-1", "ring-offset-neutral-800");
-        }, 2500);
-        break;
+    // Defer until after the browser has painted the newly-visible feed page.
+    // scrollIntoView called synchronously after showPage() can no-op because
+    // the layout hasn't been recalculated yet.
+    requestAnimationFrame(() => {
+      for (const id of itemIds) {
+        const card = document.querySelector(`[data-item-id="${CSS.escape(id)}"]`);
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          card.classList.add("ring-2", "ring-accent-500", "ring-offset-1", "ring-offset-neutral-800");
+          setTimeout(() => {
+            card.classList.remove("ring-2", "ring-accent-500", "ring-offset-1", "ring-offset-neutral-800");
+          }, 2500);
+          break;
+        }
       }
-    }
+    });
   });
 
   window.api.onPlayNotificationSound(({ soundFile, volume }) => {
