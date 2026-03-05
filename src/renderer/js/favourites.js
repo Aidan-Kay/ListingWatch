@@ -8,8 +8,8 @@
 function updateFavStars(itemId, isFavourited) {
   document.querySelectorAll(`[data-item-id="${CSS.escape(itemId)}"] .fav-btn`).forEach((btn) => {
     btn.classList.toggle("text-yellow-400", isFavourited);
-    btn.classList.toggle("text-neutral-400/60", !isFavourited);
-    btn.classList.toggle("hover:text-yellow-400", !isFavourited);
+    btn.classList.toggle("text-neutral-400", !isFavourited);
+    btn.classList.toggle("hover:bg-neutral-700", !isFavourited);
     btn.title = isFavourited ? "Remove from favourites" : "Add to favourites";
     const svg = btn.querySelector("svg");
     if (svg) svg.setAttribute("fill", isFavourited ? "currentColor" : "none");
@@ -83,7 +83,8 @@ function updateFavouritesHeader() {
  */
 async function clearFavourites() {
   if (favourites.length === 0) return;
-  if (!confirm(`Remove all ${favourites.length} saved favourite${favourites.length !== 1 ? "s" : ""}?`)) return;
+  if (!(await appConfirm(`Remove all ${favourites.length} saved favourite${favourites.length !== 1 ? "s" : ""}?`, "Clear All", true)))
+    return;
 
   const formerIds = favourites.map((f) => f.id);
   for (const item of [...favourites]) {

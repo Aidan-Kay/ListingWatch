@@ -108,9 +108,9 @@ function setSearchModalSource(source) {
   const ebayBtn = document.getElementById("source-btn-ebay");
   const vintedBtn = document.getElementById("source-btn-vinted");
   if (ebayBtn)
-    ebayBtn.className = `flex-1 py-2 rounded text-sm font-medium transition-colors ${!isVinted ? "bg-accent-500 text-white" : "bg-neutral-700 text-neutral-400 hover:text-secondary"}`;
+    ebayBtn.className = `flex-1 py-2 rounded text-sm font-medium transition-colors ${!isVinted ? "bg-accent-500 text-white" : "border border-neutral-600 text-neutral-300 hover:bg-neutral-700"}`;
   if (vintedBtn)
-    vintedBtn.className = `flex-1 py-2 rounded text-sm font-medium transition-colors ${isVinted ? "bg-teal-600 text-white" : "bg-neutral-700 text-neutral-400 hover:text-secondary"}`;
+    vintedBtn.className = `flex-1 py-2 rounded text-sm font-medium transition-colors ${isVinted ? "bg-teal-600 text-white" : "border border-neutral-600 text-neutral-300 hover:bg-neutral-700"}`;
 }
 
 // ─── Toggle Helpers ───────────────────────────────────────────────────────────
@@ -122,6 +122,7 @@ function setToggleState(toggleId, knobId, active) {
   toggle.classList.toggle("bg-accent-500", active);
   knob.classList.toggle("translate-x-1", !active);
   knob.classList.toggle("translate-x-4", active);
+  toggle.setAttribute("aria-checked", active ? "true" : "false");
 }
 
 // ─── Enabled Toggle ───────────────────────────────────────────────────────────

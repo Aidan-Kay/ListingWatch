@@ -125,3 +125,38 @@ function buyingFormatLabel(format) {
   const labels = { buy_now: "Buy It Now", auction: "Auction", all: "All Listings" };
   return labels[format] || format;
 }
+
+/**
+ * Display a branded in-app confirmation dialog instead of the native confirm().
+ * Returns a Promise<boolean> — true if confirmed, false if cancelled.
+ * Keyboard: Enter confirms, Escape cancels.
+ */
+function appConfirm(message, confirmLabel = "Confirm", dangerMode = true) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "fixed inset-0 bg-black/60 z-[200] flex items-center justify-center";
+    overlay.innerHTML = `
+      <div class="bg-neutral-800 border border-neutral-700 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+        <p class="text-sm text-secondary mb-5">${escapeHtml(message)}</p>
+        <div class="flex justify-end gap-2">
+          <button id="_confirm-cancel" class="btn-secondary text-xs">Cancel</button>
+          <button id="_confirm-ok" class="${dangerMode ? "btn-danger" : "btn-primary"} text-xs">
+            ${escapeHtml(confirmLabel)}
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = (result) => {
+      overlay.remove();
+      resolve(result);
+    };
+    overlay.querySelector("#_confirm-ok").onclick = () => cleanup(true);
+    overlay.querySelector("#_confirm-cancel").onclick = () => cleanup(false);
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") cleanup(false);
+      if (e.key === "Enter") cleanup(true);
+    });
+    overlay.querySelector("#_confirm-ok").focus();
+  });
+}

@@ -39,7 +39,7 @@ function renderFeedCard(item, index, zoom) {
       <div class="${zoom.img} flex-shrink-0 rounded-md overflow-hidden bg-neutral-700 relative group">
         ${
           item.image
-            ? `<img src="${escapeAttr(item.image)}" alt="" class="w-full h-full object-cover object-center" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
+            ? `<img src="${escapeAttr(item.image)}" alt="" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
               <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.id)}')"
               ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>
               ${item.imageCount > 1 ? `<span class="absolute bottom-1 right-1 text-xs text-white bg-black/70 px-1.5 py-0.5 rounded font-medium leading-tight pointer-events-none">${item.imageCount}</span>` : ""}`
@@ -59,7 +59,7 @@ function renderFeedCard(item, index, zoom) {
               <span class="badge badge-accent feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
               ${isEnded ? `<span class="badge ${isSold ? "bg-green-600/20 text-green-400" : "bg-neutral-700 text-neutral-500"} ${zoom.meta}">${isSold ? "SOLD" : "ENDED"}</span>` : ""}
               <button
-                class="fav-btn transition-colors z-10 ${isFavourited ? "text-yellow-400" : "text-neutral-400/60 hover:text-yellow-400"}"
+                class="fav-btn transition-colors z-10 p-1 rounded ${isFavourited ? "text-yellow-400" : "text-neutral-400 hover:bg-neutral-700"}"
                 onclick="event.stopPropagation(); toggleFavourite('${escapeAttr(item.id)}')"
                 title="${isFavourited ? "Remove from favourites" : "Add to favourites"}"
               >
@@ -75,7 +75,7 @@ function renderFeedCard(item, index, zoom) {
           <div class="flex items-center gap-2">
             ${
               item.price
-                ? `<span class="${zoom.price} font-semibold text-yellow-400">${escapeHtml(item.price)}</span>`
+                ? `<span class="${zoom.price} font-semibold text-white">${escapeHtml(item.price)}</span>`
                 : `<span class="${zoom.meta} text-neutral-400">No price</span>`
             }
             ${item.shipping ? `<span class="${zoom.meta} text-neutral-400">${escapeHtml(item.shipping)}</span>` : ""}
@@ -120,8 +120,8 @@ function applyFeedFilters(items) {
   const { text, platform, searchId, buyingFormat } = feedFilters;
   const hasActiveFilter = text || platform !== "all" || searchId !== "all" || buyingFormat !== "all";
 
-  const activeBadge = document.getElementById("filter-active-badge");
-  if (activeBadge) activeBadge.classList.toggle("hidden", !hasActiveFilter);
+  const clearBtn = document.getElementById("filter-active-badge");
+  if (clearBtn) clearBtn.classList.toggle("hidden", !hasActiveFilter);
 
   if (!hasActiveFilter) return items;
 
@@ -224,9 +224,26 @@ function renderFeed() {
     empty.classList.remove("hidden");
     grid.classList.add("hidden");
     const subtitle = document.getElementById("feed-empty-subtitle");
+    const cta = document.getElementById("feed-empty-cta");
+    const hasSearches = searches.length > 0;
+    const hasActive = searches.some((s) => s.enabled);
     if (subtitle) {
-      const hasActive = searches.some((s) => s.enabled);
-      subtitle.textContent = hasActive ? "Monitoring for new listings..." : "Add searches to start monitoring listings";
+      subtitle.textContent = hasActive
+        ? "Monitoring for new listings..."
+        : hasSearches
+          ? "Resume or add a search to see listings"
+          : "Add a search to start monitoring";
+    }
+    if (cta) {
+      if (!hasSearches) {
+        cta.innerHTML = `<button onclick="openSearchModal(null)" class="btn-primary text-sm mt-1">Add Your First Search</button>`;
+        cta.classList.remove("hidden");
+      } else if (!hasActive) {
+        cta.innerHTML = `<button onclick="showPage('searches')" class="btn-secondary text-sm mt-1">Go to Searches</button>`;
+        cta.classList.remove("hidden");
+      } else {
+        cta.classList.add("hidden");
+      }
     }
     return;
   }
@@ -246,6 +263,32 @@ function renderFeed() {
   grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
 
   grid.innerHTML = sorted.map((item, index) => renderFeedCard(item, index, zoom)).join("");
+
+  // Update header subtitle to reflect filter state
+  const subtitleEl = document.getElementById("header-subtitle");
+  if (subtitleEl && currentPage === "feed") {
+    if (filtered.length !== feedItems.length && feedItems.length > 0) {
+      subtitleEl.textContent = `Showing ${filtered.length} of ${plural(feedItems.length, "listing")} (filtered)`;
+    } else {
+      subtitleEl.textContent = "New listings from all active searches";
+    }
+  }
+}
+
+/**
+ * Reset all feed filters to their defaults and re-render.
+ */
+function clearAllFilters() {
+  feedFilters = { text: "", platform: "all", searchId: "all", buyingFormat: "all" };
+  const textEl = document.getElementById("filter-text");
+  const platformEl = document.getElementById("filter-platform");
+  const searchEl = document.getElementById("filter-search");
+  const formatEl = document.getElementById("filter-format");
+  if (textEl) textEl.value = "";
+  if (platformEl) platformEl.value = "all";
+  if (searchEl) searchEl.value = "all";
+  if (formatEl) formatEl.value = "all";
+  renderFeed();
 }
 
 function drawBadgeImage(count) {

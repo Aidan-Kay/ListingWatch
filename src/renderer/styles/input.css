@@ -5,6 +5,9 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --titlebar-height: 36px;
+  }
   * {
     box-sizing: border-box;
   }
@@ -35,7 +38,7 @@
     @apply bg-danger-500 hover:bg-danger-600 text-white font-medium px-4 py-2 rounded-md transition-colors duration-150 text-sm;
   }
   .btn-ghost {
-    @apply hover:bg-neutral-800 text-secondary font-medium px-3 py-1.5 rounded-md transition-colors duration-150 text-sm;
+    @apply bg-neutral-800 hover:bg-neutral-700 text-secondary font-medium px-3 py-1.5 rounded-md transition-colors duration-150 text-sm border border-neutral-700 hover:border-neutral-600;
   }
   .input-field {
     @apply bg-neutral-900 border border-neutral-700 text-secondary rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent-500 transition-colors duration-150 w-full placeholder-neutral-500;
@@ -74,6 +77,6 @@
     @apply bg-accent-500 bg-opacity-20 text-accent-500;
   }
   .condition-checkbox {
-    @apply w-3.5 h-3.5 rounded border-neutral-600 bg-neutral-700 accent-[#4473ad];
+    @apply w-3.5 h-3.5 rounded border-neutral-600 bg-neutral-700 accent-[var(--accent)];
   }
 }

@@ -6,17 +6,23 @@ const PAGE_META = {
     actions: () => `
       <span id="feed-count" class="text-xs text-neutral-500">${feedItems.length ? plural(feedItems.length, "listing") : ""}</span>
       <div class="flex items-center gap-0.5 p-0.5 bg-neutral-800 rounded-md border border-neutral-700">
-        ${["small", "medium", "large"].map((z) => `<button onclick="setFeedZoom('${z}')" title="${z.charAt(0).toUpperCase() + z.slice(1)} cards" class="px-2.5 py-0.5 rounded text-xs transition-colors ${feedZoom === z ? "bg-neutral-700 text-secondary" : "text-neutral-500 hover:text-secondary"}">${z === "small" ? "S" : z === "medium" ? "M" : "L"}</button>`).join("")}
+        ${["small", "medium", "large"].map((z) => `<button onclick="setFeedZoom('${z}')" title="${z.charAt(0).toUpperCase() + z.slice(1)} cards" class="px-2.5 py-1 rounded text-xs transition-colors ${feedZoom === z ? "bg-neutral-700 text-secondary" : "text-neutral-500 hover:text-secondary"}">${z === "small" ? "S" : z === "medium" ? "M" : "L"}</button>`).join("")}
       </div>
       <button onclick="clearFeed()" class="btn-ghost text-xs">Clear Feed</button>
+      <button onclick="openSearchModal(null)" class="btn-ghost text-xs flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+        </svg>
+        Add Search
+      </button>
     `,
   },
   searches: {
     title: "Searches",
     subtitle: "Configure your searches to monitor",
     actions: () => `
-      <button onclick="openSearchModal(null)" class="btn-primary flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <button onclick="openSearchModal(null)" class="btn-ghost text-xs flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
         </svg>
         Add Search
@@ -42,10 +48,15 @@ function showPage(page) {
   currentPage = page;
 
   document.querySelectorAll(".page").forEach((el) => el.classList.add("hidden"));
-  document.querySelectorAll(".nav-item").forEach((el) => el.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach((el) => {
+    el.classList.remove("active");
+    el.removeAttribute("aria-current");
+  });
 
   document.getElementById(`page-${page}`).classList.remove("hidden");
-  document.querySelector(`[data-page="${page}"]`).classList.add("active");
+  const activeNavEl = document.querySelector(`[data-page="${page}"]`);
+  activeNavEl.classList.add("active");
+  activeNavEl.setAttribute("aria-current", "page");
 
   // Update unified header
   const meta = PAGE_META[page];

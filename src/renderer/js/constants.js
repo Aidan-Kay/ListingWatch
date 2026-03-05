@@ -59,7 +59,7 @@ const EBAY_CATEGORY_URLS = {
 };
 
 // Default accent colour used when no user preference has been saved
-const DEFAULT_ACCENT_COLOR = "#7d8efc";
+const DEFAULT_ACCENT_COLOR = "#5d66f6";
 
 // Polling / feed limits (mirrors main-process constants)
 const FEED_MAX_SIZE = 500;

@@ -17,9 +17,11 @@ function applySettings() {
   // Appearance
   feedZoom = settings.feedZoom || "medium";
   selectAccentColor(settings.accentColor || DEFAULT_ACCENT_COLOR);
+  updateApiCallEstimate();
 }
 
 let _settingsSaveTimer = null;
+let _settingsSavedTimer = null;
 function debounceSettingsSave(delay = 800) {
   clearTimeout(_settingsSaveTimer);
   _settingsSaveTimer = setTimeout(() => autoSaveSettings(), delay);
@@ -54,6 +56,39 @@ async function autoSaveSettings() {
     minimizeToTray,
   });
   applyAccentColor(settings.accentColor);
+  updateApiCallEstimate();
+  // Flash a brief "saved" indicator in the Settings page subtitle
+  if (currentPage === "settings") {
+    const subtitleEl = document.getElementById("header-subtitle");
+    if (subtitleEl) {
+      subtitleEl.textContent = "Settings saved ✓";
+      clearTimeout(_settingsSavedTimer);
+      _settingsSavedTimer = setTimeout(() => {
+        if (currentPage === "settings" && subtitleEl) {
+          subtitleEl.textContent = PAGE_META.settings.subtitle;
+        }
+      }, 2000);
+    }
+  }
+}
+
+/**
+ * Compute and display the estimated daily eBay API call count based on the
+ * current interval settings and number of enabled eBay searches.
+ */
+function updateApiCallEstimate() {
+  const el = document.getElementById("api-call-estimate");
+  if (!el) return;
+  const minInterval = parseInt(document.getElementById("setting-min-interval").value, 10) || settings.minInterval || 30;
+  const maxInterval = parseInt(document.getElementById("setting-max-interval").value, 10) || settings.maxInterval || 120;
+  const enabledCount = searches.filter((s) => s.enabled && s.source === "ebay").length;
+  if (enabledCount === 0) {
+    el.textContent = "";
+    return;
+  }
+  const minCalls = Math.round((86400 / maxInterval) * enabledCount);
+  const maxCalls = Math.round((86400 / minInterval) * enabledCount);
+  el.textContent = `With ${enabledCount} active eBay ${enabledCount === 1 ? "search" : "searches"} at ${minInterval}–${maxInterval}s intervals: ~${minCalls.toLocaleString()}–${maxCalls.toLocaleString()} calls/day`;
 }
 
 function initSettingsListeners() {
@@ -128,7 +163,7 @@ async function exportData() {
 }
 
 async function importData() {
-  if (!confirm("Importing will replace all current searches and settings. Continue?")) return;
+  if (!(await appConfirm("Importing will replace all current searches and settings. Continue?", "Import", false))) return;
   const result = await window.api.importData();
   if (result.canceled) return;
   if (result.ok) {
@@ -146,18 +181,45 @@ async function importData() {
 function updateStatus() {
   const dot = document.getElementById("status-dot");
   const text = document.getElementById("status-text");
+  const pauseBtn = document.getElementById("pause-all-btn");
 
   const enabled = searches.filter((s) => s.enabled);
   const errored = searches.filter((s) => s.error);
 
   if (enabled.length === 0) {
     dot.className = "w-2 h-2 rounded-full bg-neutral-600 flex-shrink-0";
-    text.textContent = "No active searches";
+    dot.title = "Inactive — no searches are running";
+    text.textContent = "○ No active searches";
   } else if (errored.length > 0) {
     dot.className = "w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0";
-    text.textContent = `${enabled.length} active \u00b7 ${plural(errored.length, "error")}`;
+    dot.title = `Warning — ${errored.length} search error${errored.length !== 1 ? "s" : ""}`;
+    text.textContent = `⚠ ${enabled.length} active · ${plural(errored.length, "error")}`;
   } else {
     dot.className = "w-2 h-2 rounded-full bg-success-500 flex-shrink-0 animate-pulse";
-    text.textContent = `${plural(enabled.length, "active search", "active searches")}`;
+    dot.title = "Active — all searches running";
+    text.textContent = `◉ ${plural(enabled.length, "active search", "active searches")}`;
   }
+
+  if (pauseBtn) {
+    if (searches.length === 0) {
+      pauseBtn.classList.add("hidden");
+    } else {
+      pauseBtn.classList.remove("hidden");
+      pauseBtn.textContent = allPaused || enabled.length === 0 ? "Resume All" : "Pause All";
+    }
+  }
+}
+
+async function togglePauseAll() {
+  const anyEnabled = searches.some((s) => s.enabled) && !allPaused;
+  if (anyEnabled) {
+    allPaused = true;
+    await window.api.pauseAll();
+    showToast("All searches paused", "info");
+  } else {
+    allPaused = false;
+    await window.api.resumeAll();
+    showToast("All searches resumed", "info");
+  }
+  updateStatus();
 }

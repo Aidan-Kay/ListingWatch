@@ -5,6 +5,7 @@ let settings = {};
 let currentPage = "feed";
 let newCount = 0;
 let feedZoom = "medium";
+let allPaused = false;
 let feedSortOrder = "newest";
 let feedFilters = { text: "", platform: "all", searchId: "all", buyingFormat: "all" };
 let favourites = [];
