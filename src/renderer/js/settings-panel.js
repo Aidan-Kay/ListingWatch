@@ -16,7 +16,7 @@ function applySettings() {
 
   // Appearance
   feedZoom = settings.feedZoom || "medium";
-  selectAccentColor(settings.accentColor || DEFAULT_ACCENT_COLOR);
+  selectAccentColor(settings.accentColor || DEFAULT_ACCENT_COLOR, false);
   updateApiCallEstimate();
 
   // Notification sound

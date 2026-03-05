@@ -227,6 +227,7 @@ function showOfflineBanner(visible) {
       }
     }
   });
+
   window.api.onPlayNotificationSound(({ soundFile, volume }) => {
     try {
       const normalized = soundFile.startsWith("file://") ? soundFile : `file:///${soundFile.replace(/\\/g, "/")}`;

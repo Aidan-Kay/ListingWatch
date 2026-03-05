@@ -69,7 +69,7 @@ function applyAccentColor(color) {
   `;
 }
 
-function selectAccentColor(color) {
+function selectAccentColor(color, save = true) {
   const input = document.getElementById("setting-accent-color");
   if (input) input.value = color;
   document.querySelectorAll(".accent-swatch").forEach((el) => {
@@ -82,8 +82,10 @@ function selectAccentColor(color) {
   const customInput = document.getElementById("accent-color-custom-input");
   if (customInput) customInput.value = color;
   applyAccentColor(color);
-  // Auto-save so the colour persists without requiring "Save Settings"
-  if (typeof settings !== "undefined" && window.api) {
+  // Auto-save so the colour persists without requiring "Save Settings".
+  // Skipped during applySettings() init (save=false) to prevent saving before
+  // all DOM elements have been populated.
+  if (save && typeof settings !== "undefined" && window.api) {
     settings.accentColor = color;
     autoSaveSettings();
   }

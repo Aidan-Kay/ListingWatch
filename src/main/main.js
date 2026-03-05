@@ -119,6 +119,12 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+    // When minimizeToTray is off, quit the app explicitly. Hidden BrowserWindows
+    // (e.g. Vinted clients) can prevent window-all-closed from firing.
+    if (!isQuitting && !getSettings().minimizeToTray) {
+      isQuitting = true;
+      app.quit();
+    }
   });
 }
 
