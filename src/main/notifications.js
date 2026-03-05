@@ -19,14 +19,15 @@ function sendNotifications(items, settings, searches, mainWindow) {
   // Suppress notifications when the window is focused (unless setting is enabled)
   if (!settings.notifyWhenFocused && mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) return;
 
-  const allowed =
-    settings.notifyFormats && settings.notifyFormats.length > 0 ? settings.notifyFormats : DEFAULT_NOTIFY_FORMATS;
+  const allowed = settings.notifyFormats && settings.notifyFormats.length > 0 ? settings.notifyFormats : DEFAULT_NOTIFY_FORMATS;
 
   const filtered = items.filter((item) => {
     const search = searches.find((s) => s.id === item.searchId);
     if (search && search.notify === false) return false;
     const formats = item.buyingFormats || [];
-    return formats.some((f) => allowed.includes(f));
+    if (!formats.some((f) => allowed.includes(f))) return false;
+    if (search && search.maxNotifyPrice != null && item.priceNumeric != null && item.priceNumeric > search.maxNotifyPrice) return false;
+    return true;
   });
 
   if (filtered.length === 0) return;

@@ -90,6 +90,7 @@ async function search(query) {
       imageCount: images.length,
       url: item.url,
       buyingFormats: ["Buy It Now"],
+      priceNumeric: item.price ? parseFloat(item.price) : null,
       bidCount: 0,
       listingDate: item.createdAtTs ? item.createdAtTs.toISOString() : null,
       listingEndDate: null,

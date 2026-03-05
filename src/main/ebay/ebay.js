@@ -302,6 +302,8 @@ function parseApiResults(data, query) {
   const siteBase = EBAY_SITE_URLS[query.site] || EBAY_SITE_URLS["US"];
   return (data.itemSummaries || []).map((item) => {
     const price = formatItemPrice(item);
+    const priceSource = item.currentBidPrice || item.price || null;
+    const priceNumeric = priceSource ? parseFloat(priceSource.value) : null;
     const { image, images } = collectItemImages(item);
 
     const rawId = item.itemId || "";
@@ -344,6 +346,7 @@ function parseApiResults(data, query) {
       imageCount: images.length,
       url: itemUrl,
       buyingFormats,
+      priceNumeric,
       bidCount: item.bidCount || 0,
       listingDate: item.itemCreationDate || null,
       listingEndDate: item.itemEndDate || null,

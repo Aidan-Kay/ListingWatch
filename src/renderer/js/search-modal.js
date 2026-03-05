@@ -30,6 +30,7 @@ function resetSearchForm() {
   closeConditionDropdown();
   clearAspectFilters();
   clearVintedFilters();
+  document.getElementById("modal-max-notify-price").value = "";
   setSearchModalEnabled(true);
   setSearchModalNotify(true);
   setSearchModalCardColor(null);
@@ -59,6 +60,7 @@ function populateSearchForm(search) {
   updateConditionDisplay();
   loadAspectFiltersFromSaved(search.aspectFilters);
   loadVintedFiltersFromSaved(search.vintedFilters);
+  document.getElementById("modal-max-notify-price").value = search.maxNotifyPrice != null ? search.maxNotifyPrice : "";
   setSearchModalEnabled(search.enabled !== false);
   setSearchModalNotify(search.notify !== false);
   setSearchModalCardColor(search.cardColor || null);
@@ -243,6 +245,7 @@ function collectSearchFormData() {
     minInterval: parseInt(document.getElementById("modal-min-interval").value) || null,
     maxInterval: parseInt(document.getElementById("modal-max-interval").value) || null,
     initialCount: parseInt(document.getElementById("modal-initial-count").value) || 0,
+    maxNotifyPrice: parseFloat(document.getElementById("modal-max-notify-price").value) || null,
     notify: searchModalNotify,
     enabled: searchModalEnabled,
   };
