@@ -18,6 +18,28 @@ function applySettings() {
   feedZoom = settings.feedZoom || "medium";
   selectAccentColor(settings.accentColor || DEFAULT_ACCENT_COLOR);
   updateApiCallEstimate();
+
+  // Notification sound
+  const soundEnabled = settings.notificationSoundEnabled !== false;
+  document.getElementById("setting-sound-enabled").checked = soundEnabled;
+  const soundFileDisplay = document.getElementById("setting-sound-file-display");
+  if (settings.notificationSoundFile) {
+    soundFileDisplay.value = settings.notificationSoundFile.split(/[\\/]/).pop();
+  } else {
+    soundFileDisplay.value = "";
+  }
+  const volSlider = document.getElementById("setting-sound-volume");
+  const volLabel = document.getElementById("setting-sound-volume-label");
+  const vol = settings.notificationVolume != null ? settings.notificationVolume : 1.0;
+  volSlider.value = vol;
+  volLabel.textContent = `${Math.round(vol * 100)}%`;
+
+  // Proxy
+  document.getElementById("setting-proxy-enabled").checked = settings.proxyEnabled || false;
+  document.getElementById("setting-proxy-url").value = settings.proxyUrl || "";
+
+  // eBay API quota
+  document.getElementById("setting-ebay-daily-limit").value = settings.ebayApiDailyLimit || 5000;
 }
 
 let _settingsSaveTimer = null;
@@ -44,6 +66,21 @@ async function autoSaveSettings() {
 
   const minimizeToTray = document.getElementById("setting-minimize-to-tray").checked;
 
+  // Sound
+  const notificationSoundEnabled = document.getElementById("setting-sound-enabled").checked;
+  const notificationVolume = parseFloat(document.getElementById("setting-sound-volume").value);
+  // soundFile is stored in `settings` by browseSoundFile/clearSoundFile — not read from display input
+  const notificationSoundFile = settings.notificationSoundFile || null;
+
+  // Proxy
+  const proxyEnabled = document.getElementById("setting-proxy-enabled").checked;
+  const proxyUrl = document.getElementById("setting-proxy-url").value.trim();
+
+  // eBay API quota
+  const ebayApiDailyLimitRaw = parseInt(document.getElementById("setting-ebay-daily-limit").value, 10);
+  const ebayApiDailyLimit =
+    isNaN(ebayApiDailyLimitRaw) || ebayApiDailyLimitRaw < 1 ? settings.ebayApiDailyLimit || 5000 : ebayApiDailyLimitRaw;
+
   settings = await window.api.saveSettings({
     clientId,
     clientSecret,
@@ -54,6 +91,12 @@ async function autoSaveSettings() {
     accentColor,
     feedZoom,
     minimizeToTray,
+    notificationSoundEnabled,
+    notificationSoundFile,
+    notificationVolume,
+    proxyEnabled,
+    proxyUrl,
+    ebayApiDailyLimit,
   });
   applyAccentColor(settings.accentColor);
   updateApiCallEstimate();
@@ -121,6 +164,74 @@ function initSettingsListeners() {
   document.getElementById("notif-when-focused").addEventListener("change", () => autoSaveSettings());
 
   document.getElementById("setting-minimize-to-tray").addEventListener("change", () => autoSaveSettings());
+
+  // Sound
+  document.getElementById("setting-sound-enabled").addEventListener("change", () => autoSaveSettings());
+  document.getElementById("setting-sound-volume").addEventListener("input", (e) => {
+    document.getElementById("setting-sound-volume-label").textContent = `${Math.round(e.target.value * 100)}%`;
+    debounceSettingsSave(400);
+  });
+
+  // Proxy
+  document.getElementById("setting-proxy-enabled").addEventListener("change", () => autoSaveSettings());
+  document.getElementById("setting-proxy-url").addEventListener("input", () => debounceSettingsSave());
+
+  // eBay API quota
+  document.getElementById("setting-ebay-daily-limit").addEventListener("change", () => autoSaveSettings());
+}
+
+// ─── Sound helpers ────────────────────────────────────────────────────────────
+async function browseSoundFile() {
+  const filePath = await window.api.selectSoundFile();
+  if (!filePath) return;
+  settings.notificationSoundFile = filePath;
+  document.getElementById("setting-sound-file-display").value = filePath.split(/[\\/]/).pop();
+  await autoSaveSettings();
+}
+
+async function clearSoundFile() {
+  settings.notificationSoundFile = null;
+  document.getElementById("setting-sound-file-display").value = "";
+  await autoSaveSettings();
+}
+
+// ─── Proxy helpers ────────────────────────────────────────────────────────────
+async function testProxyConnection() {
+  const statusEl = document.getElementById("proxy-status");
+  statusEl.textContent = "Testing…";
+  statusEl.className = "text-xs text-neutral-400";
+
+  const proxyUrl = document.getElementById("setting-proxy-url").value.trim();
+  if (!proxyUrl) {
+    statusEl.textContent = "Enter a proxy URL first";
+    statusEl.className = "text-xs text-danger-500";
+    return;
+  }
+
+  const result = await window.api.testProxy(proxyUrl);
+  if (result.ok) {
+    statusEl.textContent = `✓ Connected — IP: ${result.ip}`;
+    statusEl.className = "text-xs text-success-500";
+  } else {
+    statusEl.textContent = `✗ ${result.error}`;
+    statusEl.className = "text-xs text-danger-500";
+  }
+}
+
+// ─── eBay API Usage helpers ───────────────────────────────────────────────────
+async function refreshApiUsage() {
+  const usage = await window.api.getApiUsage();
+  const bar = document.getElementById("api-usage-bar");
+  const text = document.getElementById("api-usage-text");
+  if (!usage) return;
+
+  const limit = usage.limit || settings.ebayApiDailyLimit || 5000;
+  const calls = usage.calls || 0;
+  const pct = Math.min(100, Math.round((calls / limit) * 100));
+
+  text.textContent = `${calls.toLocaleString()} / ${limit.toLocaleString()} (${pct}%)`;
+  bar.style.width = `${pct}%`;
+  bar.className = `h-2 rounded-full transition-all ${pct >= 90 ? "bg-danger-500" : pct >= 70 ? "bg-yellow-500" : "bg-accent-500"}`;
 }
 
 async function testConnection() {
@@ -189,15 +300,15 @@ function updateStatus() {
   if (enabled.length === 0) {
     dot.className = "w-2 h-2 rounded-full bg-neutral-600 flex-shrink-0";
     dot.title = "Inactive — no searches are running";
-    text.textContent = "○ No active searches";
+    text.textContent = "No active searches";
   } else if (errored.length > 0) {
     dot.className = "w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0";
     dot.title = `Warning — ${errored.length} search error${errored.length !== 1 ? "s" : ""}`;
-    text.textContent = `⚠ ${enabled.length} active · ${plural(errored.length, "error")}`;
+    text.textContent = `${enabled.length} active · ${plural(errored.length, "error")}`;
   } else {
     dot.className = "w-2 h-2 rounded-full bg-success-500 flex-shrink-0 animate-pulse";
     dot.title = "Active — all searches running";
-    text.textContent = `◉ ${plural(enabled.length, "active search", "active searches")}`;
+    text.textContent = `${plural(enabled.length, "active search", "active searches")}`;
   }
 
   if (pauseBtn) {

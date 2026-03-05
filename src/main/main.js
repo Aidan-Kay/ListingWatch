@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, Tray, Menu, screen } = require("electron");
+const { app, BrowserWindow, Tray, Menu, screen, session } = require("electron");
 const path = require("path");
 const log = require("electron-log/main");
 
@@ -32,6 +32,7 @@ const ebay = require("./ebay/ebay");
 const { loadSearches, loadSettings, loadWindowState, saveWindowState, userDataPath } = require("./persistence");
 const { setupIpc, makeCallbacks } = require("./ipc-handlers");
 const { startAllSearches, stopAllSearches } = require("./polling");
+const { configureRequesterProxy } = require("./vinted/lib/requester");
 
 // ─── Shared Mutable State ─────────────────────────────────────────────────────
 // feed is an array — reassigned by ipcMain handlers, so we hold it on the state
@@ -162,7 +163,11 @@ function createTray() {
     },
   ]);
 
-  tray.setContextMenu(contextMenu);
+  // Right-click shows the context menu. Avoids setContextMenu() which on
+  // Windows hijacks left-click and prevents the double-click event from firing.
+  tray.on("right-click", () => {
+    tray.popUpContextMenu(contextMenu);
+  });
 
   // Double-click restores the window (Windows/Linux standard behaviour).
   tray.on("double-click", () => {
@@ -170,6 +175,8 @@ function createTray() {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
+    } else {
+      createWindow();
     }
   });
 }
@@ -178,6 +185,14 @@ function createTray() {
 app.whenReady().then(() => {
   state.searches = loadSearches();
   settings = loadSettings();
+
+  // Apply persisted proxy settings before any network activity.
+  if (settings.proxyEnabled && settings.proxyUrl) {
+    session.defaultSession.setProxy({ proxyRules: settings.proxyUrl }).catch((err) => {
+      console.warn("[proxy] Startup proxy config failed:", err.message);
+    });
+    configureRequesterProxy(settings.proxyUrl);
+  }
 
   ebay.configure(getSettings, userDataPath);
   setupIpc(state, getSettings, setSettings, getWindow, getTray);

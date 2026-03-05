@@ -45,6 +45,15 @@ contextBridge.exposeInMainWorld("api", {
   exportData: () => ipcRenderer.invoke("export-data"),
   importData: () => ipcRenderer.invoke("import-data"),
 
+  // Sound
+  selectSoundFile: () => ipcRenderer.invoke("select-sound-file"),
+
+  // Proxy
+  testProxy: (proxyUrl) => ipcRenderer.invoke("test-proxy", proxyUrl),
+
+  // eBay API usage
+  getApiUsage: () => ipcRenderer.invoke("get-api-usage"),
+
   // Events from main -> renderer
   onNewListings: (callback) => {
     ipcRenderer.removeAllListeners("new-listings");
@@ -57,5 +66,9 @@ contextBridge.exposeInMainWorld("api", {
   onScrollToListing: (callback) => {
     ipcRenderer.removeAllListeners("scroll-to-listing");
     ipcRenderer.on("scroll-to-listing", (_event, itemIds) => callback(itemIds));
+  },
+  onPlayNotificationSound: (callback) => {
+    ipcRenderer.removeAllListeners("play-notification-sound");
+    ipcRenderer.on("play-notification-sound", (_event, opts) => callback(opts));
   },
 });

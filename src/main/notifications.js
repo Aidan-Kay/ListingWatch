@@ -49,7 +49,7 @@ function sendNotifications(items, settings, searches, mainWindow) {
     const notif = new Notification({
       title: "ListingWatch",
       body: `${item.searchName}: ${item.title}${item.price ? `  ·  ${item.price}` : ""}`,
-      silent: false,
+      silent: settings.notificationSoundEnabled && settings.notificationSoundFile ? true : !settings.notificationSoundEnabled,
     });
     notif.on("click", () => focusAndScrollTo([item.id]));
     notif.show();
@@ -61,10 +61,18 @@ function sendNotifications(items, settings, searches, mainWindow) {
           .map((i) => `${i.title}${i.price ? ` · ${i.price}` : ""}`)
           .slice(0, 3)
           .join("\n") + (filtered.length > 3 ? `\n…and ${filtered.length - 3} more` : ""),
-      silent: false,
+      silent: settings.notificationSoundEnabled && settings.notificationSoundFile ? true : !settings.notificationSoundEnabled,
     });
     notif.on("click", () => focusAndScrollTo(filtered.map((i) => i.id)));
     notif.show();
+  }
+
+  // If a custom sound file is configured, play it from the renderer (HTML5 Audio)
+  if (settings.notificationSoundEnabled && settings.notificationSoundFile && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("play-notification-sound", {
+      soundFile: settings.notificationSoundFile,
+      volume: settings.notificationVolume ?? 1.0,
+    });
   }
 }
 

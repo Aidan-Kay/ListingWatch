@@ -1,9 +1,10 @@
 "use strict";
 
-const { ipcMain, shell, dialog, nativeImage } = require("electron");
+const { ipcMain, shell, dialog, nativeImage, session } = require("electron");
 const fs = require("fs");
 const ebay = require("./ebay/ebay");
 const vinted = require("./vinted/vinted");
+const { configureRequesterProxy } = require("./vinted/lib/requester");
 const { saveSearches, saveSettings, loadFavourites, saveFavourites } = require("./persistence");
 const { scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = require("./polling");
 const { sendNotifications } = require("./notifications");
@@ -182,10 +183,22 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   ipcMain.handle("save-settings", (_event, newSettings) => {
     const current = getSettings();
     const credentialsChanged = newSettings.clientId !== current.clientId || newSettings.clientSecret !== current.clientSecret;
+    const proxyChanged = newSettings.proxyEnabled !== current.proxyEnabled || newSettings.proxyUrl !== current.proxyUrl;
     const merged = { ...current, ...newSettings };
     setSettings(merged);
     if (credentialsChanged) ebay.invalidateToken();
     saveSettings(merged);
+
+    // Apply proxy settings to Electron's session (affects net.fetch in main process)
+    // and rebuild the Vinted requester pool with the new proxy URL.
+    if (proxyChanged) {
+      const proxyRules = merged.proxyEnabled && merged.proxyUrl ? merged.proxyUrl : "direct://";
+      session.defaultSession.setProxy({ proxyRules }).catch((err) => {
+        console.warn("[proxy] Failed to set session proxy:", err.message);
+      });
+      configureRequesterProxy(merged.proxyEnabled && merged.proxyUrl ? merged.proxyUrl : null);
+    }
+
     return merged;
   });
 
@@ -231,6 +244,47 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     const favourites = loadFavourites().filter((f) => f.id !== itemId);
     saveFavourites(favourites);
     return favourites;
+  });
+
+  // ─── Sound ───────────────────────────────────────────────────────────
+  ipcMain.handle("select-sound-file", async () => {
+    const win = getWindow();
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: "Select Notification Sound",
+      filters: [{ name: "Audio", extensions: ["mp3", "wav", "ogg", "aac", "m4a", "flac"] }],
+      properties: ["openFile"],
+    });
+    if (canceled || !filePaths.length) return null;
+    return filePaths[0];
+  });
+
+  // ─── Proxy ───────────────────────────────────────────────────────────
+  ipcMain.handle("test-proxy", async (_event, proxyUrl) => {
+    if (!proxyUrl) return { ok: false, error: "No proxy URL provided" };
+    try {
+      await session.defaultSession.setProxy({ proxyRules: proxyUrl });
+      const res = await require("electron").net.fetch("https://api.ipify.org?format=json", {
+        signal: AbortSignal.timeout(8000),
+      });
+      const data = await res.json();
+      // Restore the current live proxy setting
+      const settings = getSettings();
+      const liveRules = settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : "direct://";
+      await session.defaultSession.setProxy({ proxyRules: liveRules });
+      return { ok: true, ip: data.ip };
+    } catch (err) {
+      const settings = getSettings();
+      const liveRules = settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : "direct://";
+      session.defaultSession.setProxy({ proxyRules: liveRules }).catch(() => {});
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // ─── eBay API Usage ─────────────────────────────────────────────────────────
+  ipcMain.handle("get-api-usage", () => {
+    const usage = ebay.getApiUsage();
+    const settings = getSettings();
+    return { ...usage, limit: settings.ebayApiDailyLimit || 5000 };
   });
 
   // ─── Browser ────────────────────────────────────────────────────────────────

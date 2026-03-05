@@ -10,6 +10,7 @@ const searchesFile = path.join(userDataPath, "searches.json");
 const settingsFile = path.join(userDataPath, "settings.json");
 const windowStateFile = path.join(userDataPath, "window-state.json");
 const favouritesFile = path.join(userDataPath, "favourites.json");
+const apiUsageFile = path.join(userDataPath, "api-usage.json");
 
 // ─── Searches ─────────────────────────────────────────────────────────────────
 function loadSearches() {
@@ -48,7 +49,20 @@ const DEFAULT_SETTINGS = {
   clientId: "",
   clientSecret: "",
   notifyFormats: ["Auction", "Buy It Now"],
-  minimizeToTray: true,
+  notifyWhenFocused: false,
+  feedZoom: "medium",
+  accentColor: "#7d8efc",
+  minimizeToTray: false,
+  startMinimized: false,
+  // Sound
+  notificationSoundEnabled: true,
+  notificationSoundFile: null,
+  notificationVolume: 1.0,
+  // Proxy
+  proxyEnabled: false,
+  proxyUrl: "",
+  // eBay API quota
+  ebayApiDailyLimit: 5000,
 };
 
 const CREDENTIAL_FIELDS = ["clientId", "clientSecret"];
@@ -134,6 +148,26 @@ function saveFavourites(items) {
   }
 }
 
+// ─── API Usage ────────────────────────────────────────────────────────────────
+function loadApiUsage() {
+  try {
+    if (fs.existsSync(apiUsageFile)) {
+      return JSON.parse(fs.readFileSync(apiUsageFile, "utf8"));
+    }
+  } catch (e) {
+    console.error("Failed to load API usage:", e);
+  }
+  return { calls: 0, date: "" };
+}
+
+function saveApiUsage(usage) {
+  try {
+    fs.writeFileSync(apiUsageFile, JSON.stringify(usage, null, 2), "utf8");
+  } catch (e) {
+    console.error("Failed to save API usage:", e);
+  }
+}
+
 // ─── Window State ─────────────────────────────────────────────────────────────
 function loadWindowState() {
   try {
@@ -169,4 +203,6 @@ module.exports = {
   saveWindowState,
   loadFavourites,
   saveFavourites,
+  loadApiUsage,
+  saveApiUsage,
 };

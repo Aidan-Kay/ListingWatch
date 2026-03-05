@@ -1,4 +1,22 @@
 // ─── Feed ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Update the feed page subheading with the current listing count.
+ * Shows "X listings" normally, "X of Y listings (filtered)" when a filter is
+ * active, or the default descriptor when there are no items.
+ */
+function updateFeedSubtitle(filteredCount, totalCount) {
+  const subtitleEl = document.getElementById("header-subtitle");
+  if (!subtitleEl || currentPage !== "feed") return;
+  if (totalCount === 0) {
+    subtitleEl.textContent = "New listings from all active searches";
+  } else if (filteredCount !== totalCount) {
+    subtitleEl.textContent = `${filteredCount} of ${plural(totalCount, "listing")} (filtered)`;
+  } else {
+    subtitleEl.textContent = plural(totalCount, "listing");
+  }
+}
+
 const FORMAT_BADGE_LABELS = { "Buy It Now": "BIN", "Best Offer": "Offer" };
 const ZOOM_CONFIG = {
   small: { minCol: "300px", img: "w-24 h-24", title: "text-xs", price: "text-xs", meta: "text-xs" },
@@ -55,8 +73,8 @@ function renderFeedCard(item, index, zoom) {
         <div class="flex flex-col gap-0.5">
           <div class="flex items-start justify-between gap-2">
             <p class="${zoom.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
-            <div class="flex gap-0.5 flex-shrink-0">
-              <span class="badge badge-accent feed-new-badge ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
+            <div class="flex items-center gap-0.5 flex-shrink-0">
+              <span class="badge badge-accent feed-new-badge ${zoom.meta} ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
               ${isEnded ? `<span class="badge ${isSold ? "bg-green-600/20 text-green-400" : "bg-neutral-700 text-neutral-500"} ${zoom.meta}">${isSold ? "SOLD" : "ENDED"}</span>` : ""}
               <button
                 class="fav-btn transition-colors z-10 p-1 rounded ${isFavourited ? "text-yellow-400" : "text-neutral-400 hover:bg-neutral-700"}"
@@ -207,18 +225,11 @@ function updateFeedFilterSearchOptions() {
 function renderFeed() {
   const empty = document.getElementById("feed-empty");
   const grid = document.getElementById("feed-grid");
-  const countEl = document.getElementById("feed-count");
 
   const filtered = applyFeedFilters(feedItems);
   const sorted = sortFeedItems(filtered, feedSortOrder);
 
-  if (countEl) {
-    if (filtered.length === feedItems.length) {
-      countEl.textContent = feedItems.length ? plural(feedItems.length, "listing") : "";
-    } else {
-      countEl.textContent = feedItems.length ? `${filtered.length} / ${plural(feedItems.length, "listing")}` : "";
-    }
-  }
+  updateFeedSubtitle(filtered.length, feedItems.length);
 
   if (feedItems.length === 0) {
     empty.classList.remove("hidden");
@@ -263,16 +274,6 @@ function renderFeed() {
   grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
 
   grid.innerHTML = sorted.map((item, index) => renderFeedCard(item, index, zoom)).join("");
-
-  // Update header subtitle to reflect filter state
-  const subtitleEl = document.getElementById("header-subtitle");
-  if (subtitleEl && currentPage === "feed") {
-    if (filtered.length !== feedItems.length && feedItems.length > 0) {
-      subtitleEl.textContent = `Showing ${filtered.length} of ${plural(feedItems.length, "listing")} (filtered)`;
-    } else {
-      subtitleEl.textContent = "New listings from all active searches";
-    }
-  }
 }
 
 /**
@@ -360,16 +361,9 @@ function prependFeedItems(newItems) {
   // Items that don't match are already stored in feedItems and will appear when filters clear.
   const visibleNewItems = applyFeedFilters(newItems);
 
-  // Update the count display
+  // Update the count display in the page subheading
   const filtered = applyFeedFilters(feedItems);
-  const countEl = document.getElementById("feed-count");
-  if (countEl) {
-    countEl.textContent = feedItems.length
-      ? filtered.length === feedItems.length
-        ? plural(feedItems.length, "listing")
-        : `${filtered.length} / ${plural(feedItems.length, "listing")}`
-      : "";
-  }
+  updateFeedSubtitle(filtered.length, feedItems.length);
 
   if (visibleNewItems.length === 0) return; // All new items filtered out — no DOM changes needed
 

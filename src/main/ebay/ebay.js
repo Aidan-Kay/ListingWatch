@@ -2,8 +2,14 @@
 
 const fs = require("fs");
 const path = require("path");
+const { net } = require("electron");
 const { CURRENCY_SYMBOLS } = require("../shared/constants");
 const { withRetry, isTransientError } = require("../shared/retry");
+const { loadApiUsage, saveApiUsage } = require("../persistence");
+
+// Use Electron's net.fetch (Chromium stack, respects session.setProxy) in the
+// main process. Falls back to global fetch if net is unavailable (tests/etc).
+const _fetch = (...args) => (net && net.fetch ? net.fetch(...args) : fetch(...args));
 
 const MARKETPLACE_IDS = {
   US: "EBAY_US",
@@ -65,6 +71,33 @@ function configure(getSettings, userDataPath) {
   _userDataPath = userDataPath;
 }
 
+// ─── API Call Counter ─────────────────────────────────────────────────────────
+let _usage = null; // lazy-loaded on first call
+
+function _getTodayUtc() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function _ensureUsageLoaded() {
+  if (!_usage) _usage = loadApiUsage();
+  const today = _getTodayUtc();
+  if (_usage.date !== today) {
+    _usage = { calls: 0, date: today };
+    saveApiUsage(_usage);
+  }
+}
+
+function incrementApiCalls(n = 1) {
+  _ensureUsageLoaded();
+  _usage.calls += n;
+  saveApiUsage(_usage);
+}
+
+function getApiUsage() {
+  _ensureUsageLoaded();
+  return { calls: _usage.calls, date: _usage.date };
+}
+
 // ─── OAuth Token Cache ────────────────────────────────────────────────────────
 let accessToken = null;
 let tokenExpiry = 0;
@@ -83,7 +116,7 @@ function getAccessToken() {
 
     _tokenFetchingPromise = withRetry(
       async () => {
-        const res = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
+        const res = await _fetch("https://api.ebay.com/identity/v1/oauth2/token", {
           method: "POST",
           headers: {
             Authorization: `Basic ${credentials}`,
@@ -108,7 +141,7 @@ function getAccessToken() {
         accessToken = data.access_token;
         tokenExpiry = Date.now() + data.expires_in * 1000;
         _tokenFetchingPromise = null;
-        console.log("eBay access token acquired, expires in", data.expires_in, "s");
+        console.log("[ebay] Access token acquired, expires in", data.expires_in, "s");
         return accessToken;
       })
       .catch((err) => {
@@ -152,7 +185,7 @@ async function loadCategoryTree(site) {
 
   const data = await withRetry(
     async () => {
-      const res = await fetch(`https://api.ebay.com/commerce/taxonomy/v1/category_tree/${treeId}`, {
+      const res = await _fetch(`https://api.ebay.com/commerce/taxonomy/v1/category_tree/${treeId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
@@ -238,14 +271,15 @@ async function search(query) {
   }
 
   const url = `https://api.ebay.com/buy/browse/v1/item_summary/search?${params}`;
-  console.log(`[ebay] [${query.name}] API Request: ${url}`);
+  console.log(`[ebay] [${query.name}] API Request: https://api.ebay.com/buy/browse/v1/item_summary/search`);
 
   const data = await withRetry(
     async () => {
       // Re-acquire token on each attempt so a mid-request 401 (stale token) is
       // automatically recovered on the next retry after invalidation.
       const token = await getAccessToken();
-      const res = await fetch(url, {
+      incrementApiCalls();
+      const res = await _fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
@@ -364,7 +398,7 @@ async function getItemImages(numericId, site) {
 
   const data = await withRetry(
     async () => {
-      const res = await fetch(url, {
+      const res = await _fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
@@ -392,4 +426,4 @@ async function getItemImages(numericId, site) {
   return images;
 }
 
-module.exports = { configure, getAccessToken, invalidateToken, search, loadCategoryTree, getItemImages };
+module.exports = { configure, getAccessToken, invalidateToken, search, loadCategoryTree, getItemImages, getApiUsage, incrementApiCalls };

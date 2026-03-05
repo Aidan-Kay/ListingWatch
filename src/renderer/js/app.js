@@ -4,7 +4,6 @@ const PAGE_META = {
     title: "Feed",
     subtitle: "New listings from all active searches",
     actions: () => `
-      <span id="feed-count" class="text-xs text-neutral-500">${feedItems.length ? plural(feedItems.length, "listing") : ""}</span>
       <div class="flex items-center gap-0.5 p-0.5 bg-neutral-800 rounded-md border border-neutral-700">
         ${["small", "medium", "large"].map((z) => `<button onclick="setFeedZoom('${z}')" title="${z.charAt(0).toUpperCase() + z.slice(1)} cards" class="px-2.5 py-1 rounded text-xs transition-colors ${feedZoom === z ? "bg-neutral-700 text-secondary" : "text-neutral-500 hover:text-secondary"}">${z === "small" ? "S" : z === "medium" ? "M" : "L"}</button>`).join("")}
       </div>
@@ -73,6 +72,10 @@ function showPage(page) {
 
   if (page === "favourites") {
     renderFavourites();
+  }
+
+  if (page === "settings") {
+    refreshApiUsage();
   }
 }
 
@@ -224,6 +227,17 @@ function showOfflineBanner(visible) {
       }
     }
   });
+  window.api.onPlayNotificationSound(({ soundFile, volume }) => {
+    try {
+      const normalized = soundFile.startsWith("file://") ? soundFile : `file:///${soundFile.replace(/\\/g, "/")}`;
+      const audio = new Audio(normalized);
+      audio.volume = Math.max(0, Math.min(1, volume ?? 1.0));
+      audio.play().catch((e) => console.warn("[sound] Playback failed:", e.message));
+    } catch (e) {
+      console.warn("[sound] Audio error:", e.message);
+    }
+  });
+
   // Connectivity detection
   window.addEventListener("offline", () => showOfflineBanner(true));
   window.addEventListener("online", () => showOfflineBanner(false));

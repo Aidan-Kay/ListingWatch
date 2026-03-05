@@ -42,16 +42,19 @@ async function search(query) {
   }
 
   // Apply Vinted category-specific filters (e.g. video_game_platform_ids[] = "1270,1269")
+  // Comma-separated values are split into arrays so _buildUrl repeats the key for each
+  // value, producing video_game_platform_ids[]=1269&video_game_platform_ids[]=1270.
   if (Array.isArray(query.vintedFilters)) {
     for (const vf of query.vintedFilters) {
       if (vf.name && vf.values) {
         const key = vf.name.endsWith("[]") ? vf.name : `${vf.name}[]`;
-        params[key] = vf.values;
+        const raw = String(vf.values);
+        params[key] = raw.includes(",") ? raw.split(",").map((s) => s.trim()) : raw;
       }
     }
   }
 
-  console.log(`[vinted] [${query.name}] API Request: ${apiUrl}`, params);
+  console.log(`[vinted] [${query.name}] API Request: ${apiUrl}`);
 
   const response = await requester.get(apiUrl, params);
   if (response.status !== 200) {

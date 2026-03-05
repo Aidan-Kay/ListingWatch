@@ -21,8 +21,9 @@ class HttpClient {
    * @param {number}  [options.maxRetries]   - Max retry attempts (default: 3).
    * @param {number}  [options.retryBaseDelay] - Initial backoff delay in ms (default: 1000).
    * @param {string}  [options.browser]      - Browser to impersonate: "chrome" | "firefox" (default: "chrome").
+   * @param {string}  [options.proxy]        - Proxy URL, e.g. "http://host:port" or "socks5://host:port".
    */
-  constructor({ baseUrl, headers = {}, timeout = 20000, maxRetries = 3, retryBaseDelay = 1000, browser = "chrome" } = {}) {
+  constructor({ baseUrl, headers = {}, timeout = 20000, maxRetries = 3, retryBaseDelay = 1000, browser = "chrome", proxy = null } = {}) {
     this._baseUrl = baseUrl;
     this._maxRetries = maxRetries;
     this._retryBaseDelay = retryBaseDelay;
@@ -35,6 +36,7 @@ class HttpClient {
       timeout,
       headers,
       cookieJar: this._jar,
+      ...(proxy ? { proxy } : {}),
     });
   }
 
@@ -47,6 +49,18 @@ class HttpClient {
    */
   async refreshAuth() {
     throw new Error("HttpClient.refreshAuth() must be implemented by subclass");
+  }
+
+  /**
+   * Resolve an HTML challenge by re-visiting the base URL.
+   * Subclasses should override to supply browser-navigation-style headers
+   * that differ from the default XHR/API headers.
+   * The cookie jar is NOT cleared — challenge cookies must survive.
+   * @param {string} _challengedUrl - The URL that returned the challenge page.
+   * @returns {Promise<void>}
+   */
+  async _resolveChallenge(_challengedUrl) {
+    await this._client.fetch(this._baseUrl);
   }
 
   /**
@@ -115,6 +129,27 @@ class HttpClient {
       try {
         const fullUrl = this._buildUrl(url, params);
         const response = await this._client.fetch(fullUrl);
+
+        // Some sites (e.g. Vinted) issue a cookie challenge via a 200 HTML page
+        // instead of a 401/403. Chrome resolves this by executing the challenge
+        // page's JS, which makes a callback request and then redirects back.
+        // We replicate this by visiting the base URL (homepage) with the
+        // challenge cookies already in the jar — without clearing them first —
+        // which satisfies the server and allows the API request to succeed.
+        const contentType = response.headers?.get?.("content-type") || "";
+        if (contentType.includes("text/html")) {
+          console.log(`[http-client] Received HTML challenge on attempt ${tried}/${this._maxRetries}`);
+          if (isLast) throw new Error("Received HTML challenge page instead of JSON after all retry attempts");
+          const delay = this._retryBaseDelay * Math.pow(2, tried - 1);
+          await new Promise((r) => setTimeout(r, delay));
+          try {
+            await this._resolveChallenge(fullUrl);
+          } catch (resolveErr) {
+            console.warn(`[http-client] Challenge resolution failed: ${resolveErr.message}`);
+          }
+          continue;
+        }
+
         const data = await response.json();
         return { status: response.status, data };
       } catch (err) {

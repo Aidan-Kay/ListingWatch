@@ -500,6 +500,95 @@
                 <p id="api-call-estimate" class="text-xs text-neutral-500 mt-2"></p>
               </div>
 
+              <!-- Notification Sound -->
+              <div class="card p-5">
+                <h2 class="text-sm font-semibold text-secondary mb-1">Notification Sound</h2>
+                <p class="text-xs text-neutral-500 mb-4">Play a custom audio file when new listings are found.</p>
+                <div class="space-y-3">
+                  <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" id="setting-sound-enabled" class="condition-checkbox" />
+                    <span class="text-sm text-secondary">Enable notification sound</span>
+                  </label>
+                  <div id="sound-file-row" class="flex items-center gap-2">
+                    <input
+                      id="setting-sound-file-display"
+                      type="text"
+                      readonly
+                      class="input-field text-xs flex-1 cursor-default"
+                      placeholder="Default system sound"
+                    />
+                    <button onclick="browseSoundFile()" class="btn-secondary text-xs shrink-0">Browse</button>
+                    <button onclick="clearSoundFile()" class="btn-icon p-1.5 shrink-0" data-tooltip="Clear custom sound">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div>
+                    <label class="label">Volume</label>
+                    <div class="flex items-center gap-3">
+                      <input
+                        id="setting-sound-volume"
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value="1"
+                        class="flex-1 accent-[var(--accent)]"
+                      />
+                      <span id="setting-sound-volume-label" class="text-xs text-neutral-400 w-8 text-right">100%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Proxy / VPN -->
+              <div class="card p-5">
+                <h2 class="text-sm font-semibold text-secondary mb-1">Proxy / VPN</h2>
+                <p class="text-xs text-neutral-500 mb-4">Route all listing requests through a proxy. Supports HTTP and SOCKS5.</p>
+                <div class="space-y-3">
+                  <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" id="setting-proxy-enabled" class="condition-checkbox" />
+                    <span class="text-sm text-secondary">Enable proxy</span>
+                  </label>
+                  <div>
+                    <label class="label">Proxy URL</label>
+                    <input
+                      id="setting-proxy-url"
+                      type="text"
+                      class="input-field font-mono text-xs"
+                      placeholder="http://user:pass@host:port  or  socks5://host:port"
+                    />
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <button onclick="testProxyConnection()" class="btn-secondary text-xs">Test Connection</button>
+                    <span id="proxy-status" class="text-xs text-neutral-500"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- eBay API Usage -->
+              <div class="card p-5">
+                <h2 class="text-sm font-semibold text-secondary mb-1">eBay API Usage</h2>
+                <p class="text-xs text-neutral-500 mb-4">eBay limits Production API calls per day. Monitor your usage here.</p>
+                <div class="space-y-3">
+                  <div>
+                    <label class="label">Daily Limit</label>
+                    <input id="setting-ebay-daily-limit" type="number" min="100" max="999999" class="input-field" placeholder="5000" />
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                      <span>Calls today</span>
+                      <span id="api-usage-text">—</span>
+                    </div>
+                    <div class="w-full bg-neutral-700 rounded-full h-2 overflow-hidden">
+                      <div id="api-usage-bar" class="h-2 rounded-full bg-accent-500 transition-all" style="width: 0%"></div>
+                    </div>
+                  </div>
+                  <button onclick="refreshApiUsage()" class="btn-secondary text-xs">Refresh</button>
+                </div>
+              </div>
+
               <!-- Data Export / Import -->
               <div class="card p-5">
                 <h2 class="text-sm font-semibold text-secondary mb-1">Backup &amp; Restore</h2>
