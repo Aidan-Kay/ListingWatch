@@ -67,6 +67,14 @@ class VintedClient {
       this._win.destroy();
     }
 
+    // Block resources that aren't needed for cookie / JS-challenge establishment.
+    // This cuts network load in the hidden window and reduces the surface area
+    // for network-service crashes caused by media/image fetches.
+    const BLOCKED_TYPES = new Set(["image", "stylesheet", "font", "media", "ping", "cspReport"]);
+    this._session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
+      callback({ cancel: BLOCKED_TYPES.has(details.resourceType) });
+    });
+
     const win = new BrowserWindow({
       show: false,
       width: 800,

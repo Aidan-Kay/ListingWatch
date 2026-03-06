@@ -10,6 +10,12 @@ log.initialize();
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5 MB rotation
 Object.assign(console, log.functions); // Override console.log/error/warn globally
 
+// ─── Chromium Stability Switches ────────────────────────────────────────────────
+// Disable QUIC (HTTP/3) — its Chromium implementation in Electron is unstable
+// under concurrent hidden-window traffic and causes "Network service crashed"
+// crashes in network_service_instance_impl.cc.
+app.commandLine.appendSwitch("disable-quic");
+
 // ─── Single Instance Lock ─────────────────────────────────────────────────────
 // Prevents a second instance from running alongside one already in the tray.
 // If a second instance is launched, we focus the existing window and quit.
