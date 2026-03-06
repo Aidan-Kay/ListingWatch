@@ -6,8 +6,6 @@ Built with [Electron](https://www.electronjs.org/) and [Tailwind CSS](https://ta
 
 ---
 
-<img src="./screenshots/main-window.png?raw=true" width="800" />
-
 ## Features
 
 - **Live feed** — New listings appear at the top of the feed as they are found
@@ -25,6 +23,12 @@ Built with [Electron](https://www.electronjs.org/) and [Tailwind CSS](https://ta
 - **Search duplication** — One-click clone of an existing search (starts paused)
 - **Export / Import** — Back up and restore all searches and settings as a JSON file
 - **Taskbar badge** — Unread new-listing count shown in the Windows taskbar
+
+---
+
+## Screenshots
+
+<img src="./screenshots/main-window.png?raw=true" width="800" />
 
 ---
 
