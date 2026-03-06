@@ -1,18 +1,52 @@
 // ─── Settings ─────────────────────────────────────────────────────────────────
+
+/**
+ * Set a settings toggle switch (button with role="switch") to the given state.
+ */
+function setSettingsToggle(id, active) {
+  const toggle = document.getElementById(id);
+  if (!toggle) return;
+  const knob = toggle.querySelector(".settings-toggle-knob");
+  toggle.classList.toggle("bg-neutral-700", !active);
+  toggle.classList.toggle("bg-accent-500", active);
+  toggle.setAttribute("aria-checked", active ? "true" : "false");
+  if (knob) {
+    knob.classList.toggle("translate-x-1", !active);
+    knob.classList.toggle("translate-x-4", active);
+  }
+}
+
+/**
+ * Read the current state of a settings toggle switch.
+ */
+function getSettingsToggle(id) {
+  const toggle = document.getElementById(id);
+  return toggle ? toggle.getAttribute("aria-checked") === "true" : false;
+}
+
+/**
+ * Toggle a settings switch and auto-save.
+ */
+function toggleSettingsSwitch(id) {
+  const current = getSettingsToggle(id);
+  setSettingsToggle(id, !current);
+  autoSaveSettings();
+}
+
 function applySettings() {
   document.getElementById("setting-client-id").value = settings.clientId || "";
   document.getElementById("setting-client-secret").value = settings.clientSecret || "";
   document.getElementById("setting-min-interval").value = settings.minInterval || 30;
   document.getElementById("setting-max-interval").value = settings.maxInterval || 120;
 
-  // Notification format checkboxes — default all on
+  // Notification format toggles — default all on
   const formats = settings.notifyFormats || ["Auction", "Buy It Now"];
-  document.getElementById("notif-auction").checked = formats.includes("Auction");
-  document.getElementById("notif-buy-it-now").checked = formats.includes("Buy It Now");
-  document.getElementById("notif-when-focused").checked = settings.notifyWhenFocused || false;
+  setSettingsToggle("notif-auction", formats.includes("Auction"));
+  setSettingsToggle("notif-buy-it-now", formats.includes("Buy It Now"));
+  setSettingsToggle("notif-when-focused", settings.notifyWhenFocused || false);
 
   // System tray
-  document.getElementById("setting-minimize-to-tray").checked = settings.minimizeToTray !== false;
+  setSettingsToggle("setting-minimize-to-tray", settings.minimizeToTray !== false);
 
   // Appearance
   feedZoom = settings.feedZoom || "medium";
@@ -21,7 +55,7 @@ function applySettings() {
 
   // Notification sound
   const soundEnabled = settings.notificationSoundEnabled !== false;
-  document.getElementById("setting-sound-enabled").checked = soundEnabled;
+  setSettingsToggle("setting-sound-enabled", soundEnabled);
   const soundFileDisplay = document.getElementById("setting-sound-file-display");
   if (settings.notificationSoundFile) {
     soundFileDisplay.value = settings.notificationSoundFile.split(/[\\/]/).pop();
@@ -35,11 +69,14 @@ function applySettings() {
   volLabel.textContent = `${Math.round(vol * 100)}%`;
 
   // Proxy
-  document.getElementById("setting-proxy-enabled").checked = settings.proxyEnabled || false;
+  setSettingsToggle("setting-proxy-enabled", settings.proxyEnabled || false);
   document.getElementById("setting-proxy-url").value = settings.proxyUrl || "";
 
   // eBay API quota
   document.getElementById("setting-ebay-daily-limit").value = settings.ebayApiDailyLimit || 5000;
+
+  // Show listings from hours
+  document.getElementById("setting-show-listings-hours").value = settings.showListingsFromHours || 0;
 }
 
 let _settingsSaveTimer = null;
@@ -59,27 +96,31 @@ async function autoSaveSettings() {
   const maxInterval = isNaN(maxRaw) || maxRaw < minInterval ? settings.maxInterval || 120 : maxRaw;
 
   const notifyFormats = [];
-  if (document.getElementById("notif-auction").checked) notifyFormats.push("Auction");
-  if (document.getElementById("notif-buy-it-now").checked) notifyFormats.push("Buy It Now");
-  const notifyWhenFocused = document.getElementById("notif-when-focused").checked;
+  if (getSettingsToggle("notif-auction")) notifyFormats.push("Auction");
+  if (getSettingsToggle("notif-buy-it-now")) notifyFormats.push("Buy It Now");
+  const notifyWhenFocused = getSettingsToggle("notif-when-focused");
   const accentColor = document.getElementById("setting-accent-color").value || DEFAULT_ACCENT_COLOR;
 
-  const minimizeToTray = document.getElementById("setting-minimize-to-tray").checked;
+  const minimizeToTray = getSettingsToggle("setting-minimize-to-tray");
 
   // Sound
-  const notificationSoundEnabled = document.getElementById("setting-sound-enabled").checked;
+  const notificationSoundEnabled = getSettingsToggle("setting-sound-enabled");
   const notificationVolume = parseFloat(document.getElementById("setting-sound-volume").value);
   // soundFile is stored in `settings` by browseSoundFile/clearSoundFile — not read from display input
   const notificationSoundFile = settings.notificationSoundFile || null;
 
   // Proxy
-  const proxyEnabled = document.getElementById("setting-proxy-enabled").checked;
+  const proxyEnabled = getSettingsToggle("setting-proxy-enabled");
   const proxyUrl = document.getElementById("setting-proxy-url").value.trim();
 
   // eBay API quota
   const ebayApiDailyLimitRaw = parseInt(document.getElementById("setting-ebay-daily-limit").value, 10);
   const ebayApiDailyLimit =
     isNaN(ebayApiDailyLimitRaw) || ebayApiDailyLimitRaw < 1 ? settings.ebayApiDailyLimit || 5000 : ebayApiDailyLimitRaw;
+
+  // Show listings from hours
+  const showListingsFromHoursRaw = parseInt(document.getElementById("setting-show-listings-hours").value, 10);
+  const showListingsFromHours = isNaN(showListingsFromHoursRaw) || showListingsFromHoursRaw < 0 ? 0 : showListingsFromHoursRaw;
 
   settings = await window.api.saveSettings({
     clientId,
@@ -97,6 +138,7 @@ async function autoSaveSettings() {
     proxyEnabled,
     proxyUrl,
     ebayApiDailyLimit,
+    showListingsFromHours,
   });
   applyAccentColor(settings.accentColor);
   updateApiCallEstimate();
@@ -149,25 +191,20 @@ function initSettingsListeners() {
     autoSaveSettings();
   });
 
-  document.getElementById("notif-auction").addEventListener("change", () => autoSaveSettings());
-  document.getElementById("notif-buy-it-now").addEventListener("change", () => autoSaveSettings());
-  document.getElementById("notif-when-focused").addEventListener("change", () => autoSaveSettings());
-
-  document.getElementById("setting-minimize-to-tray").addEventListener("change", () => autoSaveSettings());
-
-  // Sound
-  document.getElementById("setting-sound-enabled").addEventListener("change", () => autoSaveSettings());
+  // Sound volume
   document.getElementById("setting-sound-volume").addEventListener("input", (e) => {
     document.getElementById("setting-sound-volume-label").textContent = `${Math.round(e.target.value * 100)}%`;
     debounceSettingsSave(400);
   });
 
-  // Proxy
-  document.getElementById("setting-proxy-enabled").addEventListener("change", () => autoSaveSettings());
+  // Proxy URL
   document.getElementById("setting-proxy-url").addEventListener("input", () => debounceSettingsSave());
 
   // eBay API quota
   document.getElementById("setting-ebay-daily-limit").addEventListener("change", () => autoSaveSettings());
+
+  // Show listings from hours
+  document.getElementById("setting-show-listings-hours").addEventListener("change", () => autoSaveSettings());
 }
 
 // ─── Sound helpers ────────────────────────────────────────────────────────────

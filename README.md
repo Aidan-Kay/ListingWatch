@@ -93,7 +93,7 @@ ListingWatch accesses the public Vinted catalogue API directly (no developer acc
 
 ## Notification behaviour
 
-- Notifications fire for **new** listings only (not on the initial scan of each search, unless **Show Initial Listings** is configured)
+- Notifications fire for **new** listings only (not on the initial scan of each search, unless **Show recent listings on start** is configured in Settings to include listings from the past N hours)
 - Suppressed by default when ListingWatch is the active window (configurable in Settings)
 - Can be disabled entirely per-search via the **Notify** toggle on the Searches screen or in the search modal
 - Global format filter (Auction / Buy It Now) available in Settings

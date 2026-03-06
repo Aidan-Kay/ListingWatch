@@ -75,12 +75,21 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
 
     if (isInit) {
       state.initialised[search.id] = true;
-      const initialCount = search.initialCount > 0 ? Math.min(search.initialCount, newItems.length) : 0;
-      if (initialCount > 0) {
-        const initialItems = newItems.slice(0, initialCount);
+      const showHours = settings.showListingsFromHours || 0;
+      let initialItems = [];
+      if (showHours > 0) {
+        const cutoff = Date.now() - showHours * 3600_000;
+        initialItems = newItems.filter((item) => {
+          const ts = item.listingDate || item.foundAt;
+          return ts && new Date(ts).getTime() >= cutoff;
+        });
+      }
+      if (initialItems.length > 0) {
         pushToFeed(state, initialItems);
         onNewItems(initialItems, true);
-        console.log(`[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen, ${initialCount} added to feed`);
+        console.log(
+          `[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen, ${initialItems.length} from last ${showHours}h added to feed`,
+        );
       } else {
         console.log(`[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen, none added to feed`);
       }

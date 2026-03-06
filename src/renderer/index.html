@@ -296,19 +296,20 @@
 
         <!-- Settings Page -->
         <div id="page-settings" class="page flex-1 flex flex-col overflow-hidden hidden">
-          <div class="flex-1 overflow-y-auto p-6">
-            <div class="max-w-lg space-y-6">
-              <!-- eBay API Credentials -->
-              <div class="card p-5">
-                <h2 class="text-sm font-semibold text-secondary mb-1">eBay API Credentials</h2>
+          <div class="flex-1 overflow-y-auto">
+            <div class="max-w-2xl mx-auto py-6 px-6 space-y-8">
+              <!-- ═══ EBAY API ═══ -->
+              <section>
+                <h2 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-1">eBay API</h2>
                 <p class="text-xs text-neutral-500 mb-4">
                   Create an app at
-                  <a href="#" onclick="openDevPortal()" class="text-accent-500 hover:text-accent-600">developer.ebay.com</a> and enter your
-                  Production keys below.
+                  <a href="#" onclick="openDevPortal()" class="text-accent-500 hover:text-accent-400">developer.ebay.com</a>
+                  and enter your Production keys below.
                 </p>
-                <div class="space-y-3">
-                  <div>
-                    <label class="label">Client ID (App ID)</label>
+                <div class="divide-y divide-neutral-700/50">
+                  <!-- Client ID -->
+                  <div class="py-4">
+                    <label class="label mb-1.5">Client ID (App ID)</label>
                     <input
                       id="setting-client-id"
                       type="text"
@@ -316,243 +317,356 @@
                       placeholder="YourName-AppName-PRD-xxxxxxxxxxxx-xxxxxxxx"
                     />
                   </div>
-                  <div>
-                    <label class="label">Client Secret (Cert ID)</label>
+                  <!-- Client Secret -->
+                  <div class="py-4">
+                    <label class="label mb-1.5">Client Secret (Cert ID)</label>
                     <input
                       id="setting-client-secret"
                       type="password"
                       class="input-field font-mono text-xs"
                       placeholder="PRD-xxxxxxxxxxxx-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                     />
-                    <p class="text-xs text-neutral-500 mt-1">Stored encrypted on your device via OS keychain.</p>
+                    <p class="text-xs text-neutral-600 mt-1.5">Stored encrypted on your device via OS keychain.</p>
+                  </div>
+                  <!-- Test Connection -->
+                  <div class="py-4 flex items-center gap-3">
+                    <button onclick="testConnection()" class="btn-secondary text-xs">Test Connection</button>
+                    <span id="connection-status" class="text-xs text-neutral-500"></span>
                   </div>
                 </div>
-                <div class="flex items-center gap-3 mt-4">
-                  <button onclick="testConnection()" class="btn-secondary text-xs">Test Connection</button>
-                  <span id="connection-status" class="text-xs text-neutral-500"></span>
-                </div>
-              </div>
+              </section>
 
-              <!-- Appearance -->
-              <div class="card p-5">
-                <h2 class="text-sm font-semibold text-secondary mb-1">Appearance</h2>
-                <p class="text-xs text-neutral-500 mb-4">Choose the accent colour used throughout the application.</p>
-                <div class="flex items-center gap-2 flex-wrap">
-                  <input type="hidden" id="setting-accent-color" value="#7d8efc" />
-                  <!-- Preset swatches -->
-                  <button
-                    class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #7d8efc"
-                    data-color="#7d8efc"
-                    title="Default"
-                    onclick="selectAccentColor('#7d8efc')"
-                  ></button>
-                  <button
-                    class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #f97316"
-                    data-color="#f97316"
-                    title="Orange"
-                    onclick="selectAccentColor('#f97316')"
-                  ></button>
-                  <button
-                    class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #ef4444"
-                    data-color="#ef4444"
-                    title="Red"
-                    onclick="selectAccentColor('#ef4444')"
-                  ></button>
-                  <button
-                    class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #eab308"
-                    data-color="#eab308"
-                    title="Yellow"
-                    onclick="selectAccentColor('#eab308')"
-                  ></button>
-                  <button
-                    class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #22c55e"
-                    data-color="#22c55e"
-                    title="Green"
-                    onclick="selectAccentColor('#22c55e')"
-                  ></button>
-                  <button
-                    class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #06b6d4"
-                    data-color="#06b6d4"
-                    title="Cyan"
-                    onclick="selectAccentColor('#06b6d4')"
-                  ></button>
-                  <button
-                    class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #3b82f6"
-                    data-color="#3b82f6"
-                    title="Blue"
-                    onclick="selectAccentColor('#3b82f6')"
-                  ></button>
-                  <button
-                    class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #8b5cf6"
-                    data-color="#8b5cf6"
-                    title="Purple"
-                    onclick="selectAccentColor('#8b5cf6')"
-                  ></button>
-                  <button
-                    class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
-                    style="background: #ec4899"
-                    data-color="#ec4899"
-                    title="Pink"
-                    onclick="selectAccentColor('#ec4899')"
-                  ></button>
-                  <!-- Custom colour -->
-                  <label
-                    class="accent-swatch relative w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all cursor-pointer overflow-hidden bg-neutral-700 flex items-center justify-center"
-                    title="Custom colour"
-                    data-color="custom"
-                  >
-                    <svg
-                      class="w-3 h-3 text-neutral-400 pointer-events-none"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="2.5"
-                    >
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    <input
-                      type="color"
-                      id="accent-color-custom-input"
-                      class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                      onchange="selectAccentColor(this.value)"
-                    />
-                    <div id="accent-swatch-custom-preview" class="absolute inset-0 opacity-0"></div>
-                  </label>
-                </div>
-              </div>
+              <hr class="border-neutral-700" />
 
-              <!-- Application -->
-              <div class="card p-5">
-                <h2 class="text-sm font-semibold text-secondary mb-1">Application</h2>
-                <p class="text-xs text-neutral-500 mb-4">Controls how ListingWatch behaves in the Windows system tray.</p>
-                <div class="space-y-3">
-                  <label class="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" id="setting-minimize-to-tray" class="condition-checkbox" />
-                    <div>
-                      <span class="text-sm text-secondary">Minimise to tray on close</span>
-                      <p class="text-xs text-neutral-500 mt-0.5">Keep ListingWatch running in the background when the window is closed</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <!-- Notifications -->
-              <div class="card p-5">
-                <h2 class="text-sm font-semibold text-secondary mb-1">Notifications</h2>
-                <div class="space-y-4">
-                  <div>
-                    <p class="text-xs text-neutral-500 mb-3">
-                      Choose which buying formats trigger a Windows notification when new listings are found.
-                    </p>
-                    <div class="space-y-2">
-                      <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="notif-auction" class="condition-checkbox" />
-                        <span class="text-sm text-secondary">Auction</span>
-                      </label>
-                      <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="notif-buy-it-now" class="condition-checkbox" />
-                        <span class="text-sm text-secondary">Buy It Now</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div>
-                    <label class="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" id="notif-when-focused" class="condition-checkbox" />
+              <!-- ═══ POLLING ═══ -->
+              <section>
+                <h2 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-1">Polling</h2>
+                <p class="text-xs text-neutral-500 mb-4">Controls how often searches are refreshed.</p>
+                <div class="divide-y divide-neutral-700/50">
+                  <!-- Refresh Interval -->
+                  <div class="py-4">
+                    <label class="label mb-1.5">Refresh Interval</label>
+                    <p class="text-xs text-neutral-500 mb-3">Each search is refreshed at a random interval between these two values.</p>
+                    <div class="grid grid-cols-2 gap-4">
                       <div>
-                        <span class="text-sm text-secondary">Notify when ListingWatch is the active window</span>
+                        <label class="text-xs text-neutral-400 mb-1 block">Minimum (seconds)</label>
+                        <input id="setting-min-interval" type="number" min="10" max="3600" class="input-field" placeholder="30" />
                       </div>
-                    </label>
+                      <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Maximum (seconds)</label>
+                        <input id="setting-max-interval" type="number" min="10" max="3600" class="input-field" placeholder="120" />
+                      </div>
+                    </div>
+                    <p id="api-call-estimate" class="text-xs text-neutral-500 mt-2"></p>
+                  </div>
+                  <!-- Show listings from hours -->
+                  <div class="py-4">
+                    <div class="flex items-center justify-between">
+                      <div class="flex-1 mr-4">
+                        <p class="text-sm text-secondary font-medium">Show recent listings on start</p>
+                        <p class="text-xs text-neutral-500 mt-0.5">
+                          When a search is first polled, add listings from the past N hours to the feed. Set to 0 to only show new listings
+                          going forward.
+                        </p>
+                      </div>
+                      <input
+                        id="setting-show-listings-hours"
+                        type="number"
+                        min="0"
+                        max="168"
+                        class="input-field w-20 text-center"
+                        placeholder="0"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <!-- Refresh Intervals -->
-              <div class="card p-5">
-                <h2 class="text-sm font-semibold text-secondary mb-1">Refresh Interval</h2>
-                <p class="text-xs text-neutral-500 mb-3">Each search is refreshed at a random interval between these two values.</p>
-                <p class="text-xs text-neutral-500 mb-4">
-                  eBay limits API usage to <strong class="text-neutral-400">5,000 calls per day</strong>. Set your intervals accordingly.
-                  <a
-                    href="#"
-                    onclick="window.api.openExternal('https://developer.ebay.com/develop/get-started/api-call-limits')"
-                    class="text-accent-500 hover:text-accent-400"
-                    >View limits ↗</a
-                  >
-                </p>
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="label">Minimum (seconds)</label>
-                    <input id="setting-min-interval" type="number" min="10" max="3600" class="input-field" placeholder="30" />
-                  </div>
-                  <div>
-                    <label class="label">Maximum (seconds)</label>
-                    <input id="setting-max-interval" type="number" min="10" max="3600" class="input-field" placeholder="120" />
-                  </div>
-                </div>
-                <p id="api-call-estimate" class="text-xs text-neutral-500 mt-2"></p>
-              </div>
+              <hr class="border-neutral-700" />
 
-              <!-- Notification Sound -->
-              <div class="card p-5">
-                <h2 class="text-sm font-semibold text-secondary mb-1">Notification Sound</h2>
-                <p class="text-xs text-neutral-500 mb-4">Play a custom audio file when new listings are found.</p>
-                <div class="space-y-3">
-                  <label class="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" id="setting-sound-enabled" class="condition-checkbox" />
-                    <span class="text-sm text-secondary">Enable notification sound</span>
-                  </label>
-                  <div id="sound-file-row" class="flex items-center gap-2">
-                    <input
-                      id="setting-sound-file-display"
-                      type="text"
-                      readonly
-                      class="input-field text-xs flex-1 cursor-default"
-                      placeholder="Default system sound"
-                    />
-                    <button onclick="browseSoundFile()" class="btn-secondary text-xs shrink-0">Browse</button>
-                    <button onclick="clearSoundFile()" class="btn-icon p-1.5 shrink-0" data-tooltip="Clear custom sound">
-                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+              <!-- ═══ NOTIFICATIONS ═══ -->
+              <section>
+                <h2 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-1">Notifications</h2>
+                <p class="text-xs text-neutral-500 mb-4">Configure when and how you are notified about new listings.</p>
+                <div class="divide-y divide-neutral-700/50">
+                  <!-- Auction notifications -->
+                  <div class="py-4 flex items-center justify-between">
+                    <div>
+                      <p class="text-sm text-secondary font-medium">Auction</p>
+                      <p class="text-xs text-neutral-500 mt-0.5">Notify when new auction listings are found</p>
+                    </div>
+                    <button
+                      id="notif-auction"
+                      role="switch"
+                      aria-checked="true"
+                      onclick="toggleSettingsSwitch('notif-auction')"
+                      class="settings-toggle relative inline-flex h-5 w-9 items-center rounded-full bg-accent-500 transition-colors flex-shrink-0"
+                    >
+                      <span
+                        class="settings-toggle-knob inline-block h-3.5 w-3.5 translate-x-4 transform rounded-full bg-white shadow transition-transform"
+                      ></span>
                     </button>
                   </div>
-                  <div>
-                    <label class="label">Volume</label>
-                    <div class="flex items-center gap-3">
+                  <!-- Buy It Now notifications -->
+                  <div class="py-4 flex items-center justify-between">
+                    <div>
+                      <p class="text-sm text-secondary font-medium">Buy It Now</p>
+                      <p class="text-xs text-neutral-500 mt-0.5">Notify when new Buy It Now listings are found</p>
+                    </div>
+                    <button
+                      id="notif-buy-it-now"
+                      role="switch"
+                      aria-checked="true"
+                      onclick="toggleSettingsSwitch('notif-buy-it-now')"
+                      class="settings-toggle relative inline-flex h-5 w-9 items-center rounded-full bg-accent-500 transition-colors flex-shrink-0"
+                    >
+                      <span
+                        class="settings-toggle-knob inline-block h-3.5 w-3.5 translate-x-4 transform rounded-full bg-white shadow transition-transform"
+                      ></span>
+                    </button>
+                  </div>
+                  <!-- Notify when focused -->
+                  <div class="py-4 flex items-center justify-between">
+                    <div>
+                      <p class="text-sm text-secondary font-medium">Notify when focused</p>
+                      <p class="text-xs text-neutral-500 mt-0.5">Show notifications even when ListingWatch is the active window</p>
+                    </div>
+                    <button
+                      id="notif-when-focused"
+                      role="switch"
+                      aria-checked="false"
+                      onclick="toggleSettingsSwitch('notif-when-focused')"
+                      class="settings-toggle relative inline-flex h-5 w-9 items-center rounded-full bg-neutral-700 transition-colors flex-shrink-0"
+                    >
+                      <span
+                        class="settings-toggle-knob inline-block h-3.5 w-3.5 translate-x-1 transform rounded-full bg-white shadow transition-transform"
+                      ></span>
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <hr class="border-neutral-700" />
+
+              <!-- ═══ SOUNDS ═══ -->
+              <section>
+                <h2 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-1">Sounds</h2>
+                <p class="text-xs text-neutral-500 mb-4">Play a custom audio file when new listings are found.</p>
+                <div class="divide-y divide-neutral-700/50">
+                  <!-- Sound enabled -->
+                  <div class="py-4 flex items-center justify-between">
+                    <div>
+                      <p class="text-sm text-secondary font-medium">Notification sound</p>
+                      <p class="text-xs text-neutral-500 mt-0.5">Play a sound when new listings are found</p>
+                    </div>
+                    <button
+                      id="setting-sound-enabled"
+                      role="switch"
+                      aria-checked="true"
+                      onclick="toggleSettingsSwitch('setting-sound-enabled')"
+                      class="settings-toggle relative inline-flex h-5 w-9 items-center rounded-full bg-accent-500 transition-colors flex-shrink-0"
+                    >
+                      <span
+                        class="settings-toggle-knob inline-block h-3.5 w-3.5 translate-x-4 transform rounded-full bg-white shadow transition-transform"
+                      ></span>
+                    </button>
+                  </div>
+                  <!-- Sound file -->
+                  <div class="py-4">
+                    <p class="text-sm text-secondary font-medium mb-2">Custom sound file</p>
+                    <div class="flex items-center gap-2">
                       <input
-                        id="setting-sound-volume"
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value="1"
-                        class="flex-1 accent-[var(--accent)]"
+                        id="setting-sound-file-display"
+                        type="text"
+                        readonly
+                        class="input-field text-xs flex-1 cursor-default"
+                        placeholder="Default system sound"
                       />
-                      <span id="setting-sound-volume-label" class="text-xs text-neutral-400 w-8 text-right">100%</span>
+                      <button onclick="browseSoundFile()" class="btn-secondary text-xs shrink-0">Browse</button>
+                      <button onclick="clearSoundFile()" class="btn-icon p-1.5 shrink-0" data-tooltip="Clear custom sound">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- Volume -->
+                  <div class="py-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <p class="text-sm text-secondary font-medium">Volume</p>
+                      <span id="setting-sound-volume-label" class="text-xs text-neutral-400 w-10 text-right">100%</span>
+                    </div>
+                    <input
+                      id="setting-sound-volume"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value="1"
+                      class="w-full accent-[var(--accent)]"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <hr class="border-neutral-700" />
+
+              <!-- ═══ APPEARANCE ═══ -->
+              <section>
+                <h2 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-1">Appearance</h2>
+                <p class="text-xs text-neutral-500 mb-4">Customise how ListingWatch looks.</p>
+                <div class="divide-y divide-neutral-700/50">
+                  <!-- Accent colour -->
+                  <div class="py-4">
+                    <p class="text-sm text-secondary font-medium mb-3">Accent colour</p>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <input type="hidden" id="setting-accent-color" value="#7d8efc" />
+                      <button
+                        class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                        style="background: #7d8efc"
+                        data-color="#7d8efc"
+                        title="Default"
+                        onclick="selectAccentColor('#7d8efc')"
+                      ></button>
+                      <button
+                        class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                        style="background: #f97316"
+                        data-color="#f97316"
+                        title="Orange"
+                        onclick="selectAccentColor('#f97316')"
+                      ></button>
+                      <button
+                        class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                        style="background: #ef4444"
+                        data-color="#ef4444"
+                        title="Red"
+                        onclick="selectAccentColor('#ef4444')"
+                      ></button>
+                      <button
+                        class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                        style="background: #eab308"
+                        data-color="#eab308"
+                        title="Yellow"
+                        onclick="selectAccentColor('#eab308')"
+                      ></button>
+                      <button
+                        class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                        style="background: #22c55e"
+                        data-color="#22c55e"
+                        title="Green"
+                        onclick="selectAccentColor('#22c55e')"
+                      ></button>
+                      <button
+                        class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                        style="background: #06b6d4"
+                        data-color="#06b6d4"
+                        title="Cyan"
+                        onclick="selectAccentColor('#06b6d4')"
+                      ></button>
+                      <button
+                        class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                        style="background: #3b82f6"
+                        data-color="#3b82f6"
+                        title="Blue"
+                        onclick="selectAccentColor('#3b82f6')"
+                      ></button>
+                      <button
+                        class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                        style="background: #8b5cf6"
+                        data-color="#8b5cf6"
+                        title="Purple"
+                        onclick="selectAccentColor('#8b5cf6')"
+                      ></button>
+                      <button
+                        class="accent-swatch w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all"
+                        style="background: #ec4899"
+                        data-color="#ec4899"
+                        title="Pink"
+                        onclick="selectAccentColor('#ec4899')"
+                      ></button>
+                      <label
+                        class="accent-swatch relative w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-neutral-800 ring-transparent transition-all cursor-pointer overflow-hidden bg-neutral-700 flex items-center justify-center"
+                        title="Custom colour"
+                        data-color="custom"
+                      >
+                        <svg
+                          class="w-3 h-3 text-neutral-400 pointer-events-none"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                        >
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        <input
+                          type="color"
+                          id="accent-color-custom-input"
+                          class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                          onchange="selectAccentColor(this.value)"
+                        />
+                        <div id="accent-swatch-custom-preview" class="absolute inset-0 opacity-0"></div>
+                      </label>
                     </div>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <!-- Proxy / VPN -->
-              <div class="card p-5">
-                <h2 class="text-sm font-semibold text-secondary mb-1">Proxy / VPN</h2>
+              <hr class="border-neutral-700" />
+
+              <!-- ═══ APPLICATION ═══ -->
+              <section>
+                <h2 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-1">Application</h2>
+                <p class="text-xs text-neutral-500 mb-4">General application behaviour.</p>
+                <div class="divide-y divide-neutral-700/50">
+                  <!-- Minimise to tray -->
+                  <div class="py-4 flex items-center justify-between">
+                    <div>
+                      <p class="text-sm text-secondary font-medium">Minimise to tray on close</p>
+                      <p class="text-xs text-neutral-500 mt-0.5">Keep ListingWatch running in the background when the window is closed</p>
+                    </div>
+                    <button
+                      id="setting-minimize-to-tray"
+                      role="switch"
+                      aria-checked="false"
+                      onclick="toggleSettingsSwitch('setting-minimize-to-tray')"
+                      class="settings-toggle relative inline-flex h-5 w-9 items-center rounded-full bg-neutral-700 transition-colors flex-shrink-0"
+                    >
+                      <span
+                        class="settings-toggle-knob inline-block h-3.5 w-3.5 translate-x-1 transform rounded-full bg-white shadow transition-transform"
+                      ></span>
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <hr class="border-neutral-700" />
+
+              <!-- ═══ PROXY / VPN ═══ -->
+              <section>
+                <h2 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-1">Proxy / VPN</h2>
                 <p class="text-xs text-neutral-500 mb-4">Route all listing requests through a proxy. Supports HTTP and SOCKS5.</p>
-                <div class="space-y-3">
-                  <label class="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" id="setting-proxy-enabled" class="condition-checkbox" />
-                    <span class="text-sm text-secondary">Enable proxy</span>
-                  </label>
-                  <div>
-                    <label class="label">Proxy URL</label>
+                <div class="divide-y divide-neutral-700/50">
+                  <!-- Proxy enabled -->
+                  <div class="py-4 flex items-center justify-between">
+                    <div>
+                      <p class="text-sm text-secondary font-medium">Enable proxy</p>
+                      <p class="text-xs text-neutral-500 mt-0.5">Route requests through the proxy URL below</p>
+                    </div>
+                    <button
+                      id="setting-proxy-enabled"
+                      role="switch"
+                      aria-checked="false"
+                      onclick="toggleSettingsSwitch('setting-proxy-enabled')"
+                      class="settings-toggle relative inline-flex h-5 w-9 items-center rounded-full bg-neutral-700 transition-colors flex-shrink-0"
+                    >
+                      <span
+                        class="settings-toggle-knob inline-block h-3.5 w-3.5 translate-x-1 transform rounded-full bg-white shadow transition-transform"
+                      ></span>
+                    </button>
+                  </div>
+                  <!-- Proxy URL -->
+                  <div class="py-4">
+                    <label class="label mb-1.5">Proxy URL</label>
                     <input
                       id="setting-proxy-url"
                       type="text"
@@ -560,38 +674,67 @@
                       placeholder="http://user:pass@host:port  or  socks5://host:port"
                     />
                   </div>
-                  <div class="flex items-center gap-3">
+                  <!-- Test -->
+                  <div class="py-4 flex items-center gap-3">
                     <button onclick="testProxyConnection()" class="btn-secondary text-xs">Test Connection</button>
                     <span id="proxy-status" class="text-xs text-neutral-500"></span>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <!-- eBay API Usage -->
-              <div class="card p-5">
-                <h2 class="text-sm font-semibold text-secondary mb-1">eBay API Usage</h2>
+              <hr class="border-neutral-700" />
+
+              <!-- ═══ EBAY API USAGE ═══ -->
+              <section>
+                <h2 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-1">eBay API Usage</h2>
                 <p class="text-xs text-neutral-500 mb-4">eBay limits Production API calls per day. Monitor your usage here.</p>
-                <div class="space-y-3">
-                  <div>
-                    <label class="label">Daily Limit</label>
-                    <input id="setting-ebay-daily-limit" type="number" min="100" max="999999" class="input-field" placeholder="5000" />
+                <div class="divide-y divide-neutral-700/50">
+                  <!-- Daily limit -->
+                  <div class="py-4">
+                    <div class="flex items-center justify-between">
+                      <div class="flex-1 mr-4">
+                        <p class="text-sm text-secondary font-medium">Daily limit</p>
+                        <p class="text-xs text-neutral-500 mt-0.5">
+                          eBay limits API usage to <strong class="text-neutral-400">5,000 calls per day</strong>.
+                          <a
+                            href="#"
+                            onclick="window.api.openExternal('https://developer.ebay.com/develop/get-started/api-call-limits')"
+                            class="text-accent-500 hover:text-accent-400"
+                            >View limits ↗</a
+                          >
+                        </p>
+                      </div>
+                      <input
+                        id="setting-ebay-daily-limit"
+                        type="number"
+                        min="100"
+                        max="999999"
+                        class="input-field w-24 text-center"
+                        placeholder="5000"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                  <!-- Usage bar -->
+                  <div class="py-4">
+                    <div class="flex justify-between text-xs text-neutral-400 mb-1.5">
                       <span>Calls today</span>
                       <span id="api-usage-text">—</span>
                     </div>
                     <div class="w-full bg-neutral-700 rounded-full h-2 overflow-hidden">
                       <div id="api-usage-bar" class="h-2 rounded-full bg-accent-500 transition-all" style="width: 0%"></div>
                     </div>
+                    <div class="mt-3">
+                      <button onclick="refreshApiUsage()" class="btn-secondary text-xs">Refresh</button>
+                    </div>
                   </div>
-                  <button onclick="refreshApiUsage()" class="btn-secondary text-xs">Refresh</button>
                 </div>
-              </div>
+              </section>
 
-              <!-- Data Export / Import -->
-              <div class="card p-5">
-                <h2 class="text-sm font-semibold text-secondary mb-1">Backup &amp; Restore</h2>
+              <hr class="border-neutral-700" />
+
+              <!-- ═══ BACKUP & RESTORE ═══ -->
+              <section class="pb-6">
+                <h2 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-1">Backup &amp; Restore</h2>
                 <p class="text-xs text-neutral-500 mb-4">
                   Export all your searches and settings to a JSON file, or import a previously saved backup.
                 </p>
@@ -617,7 +760,7 @@
                     Import Backup
                   </button>
                 </div>
-              </div>
+              </section>
             </div>
           </div>
         </div>
@@ -1090,13 +1233,6 @@
                 <input id="modal-max-interval" type="number" min="10" max="86400" class="input-field" placeholder="Global default" />
               </div>
             </div>
-          </div>
-
-          <!-- Initial listings -->
-          <div>
-            <label class="label">Show Initial Listings</label>
-            <p class="text-xs text-neutral-500 mb-2">On first fetch, add this many of the most recent listings to the feed (0 = none).</p>
-            <input id="modal-initial-count" type="number" min="0" max="50" class="input-field" placeholder="0" />
           </div>
 
           <!-- Max Notify Price -->

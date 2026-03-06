@@ -5,7 +5,7 @@ const PAGE_META = {
     subtitle: "New listings from all active searches",
     actions: () => `
       <div class="flex items-center gap-0.5 p-0.5 bg-neutral-800 rounded-md border border-neutral-700">
-        ${["small", "medium", "large"].map((z) => `<button onclick="setFeedZoom('${z}')" title="${z.charAt(0).toUpperCase() + z.slice(1)} cards" class="px-2.5 py-1 rounded text-xs transition-colors ${feedZoom === z ? "bg-neutral-700 text-secondary" : "text-neutral-500 hover:text-secondary"}">${z === "small" ? "S" : z === "medium" ? "M" : "L"}</button>`).join("")}
+        ${["small", "medium", "large"].map((z) => `<button onclick="setFeedZoom('${z}')" title="${z.charAt(0).toUpperCase() + z.slice(1)} cards" class="px-2.5 py-1.5 rounded text-xs transition-colors ${feedZoom === z ? "bg-neutral-700 text-secondary" : "text-neutral-500 hover:text-secondary"}">${z === "small" ? "S" : z === "medium" ? "M" : "L"}</button>`).join("")}
       </div>
       <button onclick="clearFeed()" class="btn-ghost text-xs">Clear Feed</button>
       <button onclick="openSearchModal(null)" class="btn-ghost text-xs flex items-center gap-1.5">

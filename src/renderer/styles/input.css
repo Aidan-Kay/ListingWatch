@@ -44,10 +44,19 @@
     @apply bg-danger-500 hover:bg-danger-600 text-white font-medium px-4 py-2 rounded-md transition-colors duration-150 text-sm;
   }
   .btn-ghost {
-    @apply bg-neutral-800 hover:bg-neutral-700 text-secondary font-medium px-3 py-1.5 rounded-md transition-colors duration-150 text-sm border border-neutral-700 hover:border-neutral-600;
+    @apply bg-neutral-800 hover:bg-neutral-700 text-secondary font-medium px-4 py-2 rounded-md transition-colors duration-150 text-sm border border-neutral-700 hover:border-neutral-600;
   }
   .btn-icon {
-    @apply relative text-neutral-400 hover:text-secondary p-2 rounded-md transition-colors duration-150 border border-transparent hover:bg-neutral-700 hover:border-neutral-600;
+    @apply relative text-neutral-400 hover:text-secondary p-1.5 rounded-md transition-colors duration-150 border border-transparent hover:bg-neutral-700 hover:border-neutral-600;
+  }
+  .btn-icon-off {
+    @apply text-danger-500 bg-danger-500/10 border-danger-500/20 hover:text-danger-500 hover:bg-danger-500/20 hover:border-danger-500/30;
+  }
+  .search-toggle {
+    @apply relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 cursor-pointer focus:outline-none;
+  }
+  .search-toggle-knob {
+    @apply inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200;
   }
   .input-field {
     @apply bg-neutral-900 border border-neutral-700 text-secondary rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent-500 transition-colors duration-150 w-full placeholder-neutral-500;

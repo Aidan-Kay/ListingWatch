@@ -10,7 +10,7 @@ function updateFavStars(itemId, isFavourited) {
     btn.classList.toggle("text-yellow-400", isFavourited);
     btn.classList.toggle("text-neutral-400", !isFavourited);
     btn.classList.toggle("hover:bg-neutral-700", !isFavourited);
-    btn.title = isFavourited ? "Remove from favourites" : "Add to favourites";
+    btn.dataset.tooltip = isFavourited ? "Remove from favourites" : "Add to favourites";
     const svg = btn.querySelector("svg");
     if (svg) svg.setAttribute("fill", isFavourited ? "currentColor" : "none");
   });

@@ -63,6 +63,8 @@ const DEFAULT_SETTINGS = {
   proxyUrl: "",
   // eBay API quota
   ebayApiDailyLimit: 5000,
+  // Initial feed
+  showListingsFromHours: 0,
 };
 
 const CREDENTIAL_FIELDS = ["clientId", "clientSecret"];

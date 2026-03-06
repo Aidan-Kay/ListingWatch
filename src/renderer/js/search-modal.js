@@ -24,7 +24,6 @@ function resetSearchForm() {
   document.getElementById("modal-format").value = "all";
   document.getElementById("modal-min-interval").value = "";
   document.getElementById("modal-max-interval").value = "";
-  document.getElementById("modal-initial-count").value = "";
   selectedConditions = [];
   updateConditionDisplay();
   closeConditionDropdown();
@@ -55,7 +54,6 @@ function populateSearchForm(search) {
   document.getElementById("modal-format").value = search.format || "all";
   document.getElementById("modal-min-interval").value = search.minInterval || "";
   document.getElementById("modal-max-interval").value = search.maxInterval || "";
-  document.getElementById("modal-initial-count").value = search.initialCount || "";
   selectedConditions = Array.isArray(search.conditions) ? [...search.conditions] : [];
   updateConditionDisplay();
   loadAspectFiltersFromSaved(search.aspectFilters);
@@ -110,7 +108,7 @@ function setSearchModalSource(source) {
   const ebayBtn = document.getElementById("source-btn-ebay");
   const vintedBtn = document.getElementById("source-btn-vinted");
   if (ebayBtn)
-    ebayBtn.className = `flex-1 py-2 rounded text-sm font-medium transition-colors ${!isVinted ? "bg-accent-500 text-white" : "border border-neutral-600 text-neutral-300 hover:bg-neutral-700"}`;
+    ebayBtn.className = `flex-1 py-2 rounded text-sm font-medium transition-colors ${!isVinted ? "bg-yellow-600 text-white" : "border border-neutral-600 text-neutral-300 hover:bg-neutral-700"}`;
   if (vintedBtn)
     vintedBtn.className = `flex-1 py-2 rounded text-sm font-medium transition-colors ${isVinted ? "bg-teal-600 text-white" : "border border-neutral-600 text-neutral-300 hover:bg-neutral-700"}`;
 }
@@ -244,7 +242,6 @@ function collectSearchFormData() {
     cardColor: searchModalCardColor || null,
     minInterval: parseInt(document.getElementById("modal-min-interval").value) || null,
     maxInterval: parseInt(document.getElementById("modal-max-interval").value) || null,
-    initialCount: parseInt(document.getElementById("modal-initial-count").value) || 0,
     maxNotifyPrice: parseFloat(document.getElementById("modal-max-notify-price").value) || null,
     notify: searchModalNotify,
     enabled: searchModalEnabled,
