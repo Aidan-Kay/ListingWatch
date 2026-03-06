@@ -6,6 +6,8 @@ Built with [Electron](https://www.electronjs.org/) and [Tailwind CSS](https://ta
 
 ---
 
+<img src="./screenshots/main-window.png?raw=true" width="800" />
+
 ## Features
 
 - **Live feed** — New listings appear at the top of the feed as they are found
