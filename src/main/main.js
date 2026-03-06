@@ -10,6 +10,14 @@ log.initialize();
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5 MB rotation
 Object.assign(console, log.functions); // Override console.log/error/warn globally
 
+// ─── App Identity ─────────────────────────────────────────────────────────────
+// Must be set before app is ready. Controls the Windows notification sender
+// name — without this it falls back to "electron.app.Electron".
+app.name = "ListingWatch";
+if (process.platform === "win32") {
+  app.setAppUserModelId("ListingWatch");
+}
+
 // ─── Chromium Stability Switches ────────────────────────────────────────────────
 // Disable QUIC (HTTP/3) — its Chromium implementation in Electron is unstable
 // under concurrent hidden-window traffic and causes "Network service crashed"

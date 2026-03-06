@@ -3,6 +3,31 @@
 const { BrowserWindow, session } = require("electron");
 const { isTransientError } = require("../../shared/retry");
 
+// ─── Cloudflare Detection ──────────────────────────────────────────────────
+
+/** Markers in HTML body that indicate a Cloudflare challenge page. */
+const CF_MARKERS = ["challenges.cloudflare.com", "Just a moment", "cf-turnstile", "cdn-cgi/challenge-platform"];
+
+/**
+ * Determine whether an HTML response body is a Cloudflare challenge page
+ * (as opposed to a genuine HTML error from Vinted's own servers).
+ * @param {string} body  Raw HTML response body.
+ * @returns {boolean}
+ */
+function isCloudflareChallenge(body) {
+  return CF_MARKERS.some((marker) => body.includes(marker));
+}
+
+/**
+ * Check whether a URL belongs to Cloudflare's challenge infrastructure.
+ * Used to exclude CF resources from the network-resource blocker.
+ * @param {string} url
+ * @returns {boolean}
+ */
+function isCloudflareUrl(url) {
+  return url.includes("challenges.cloudflare.com") || url.includes("cdn-cgi/challenge-platform");
+}
+
 /**
  * Vinted-specific HTTP client.
  *
@@ -67,11 +92,17 @@ class VintedClient {
       this._win.destroy();
     }
 
-    // Block resources that aren't needed for cookie / JS-challenge establishment.
-    // This cuts network load in the hidden window and reduces the surface area
-    // for network-service crashes caused by media/image fetches.
+    // Block heavy resources that aren't needed for cookie / JS-challenge
+    // establishment. This cuts network load in the hidden window and reduces
+    // the surface area for network-service crashes caused by media/image
+    // fetches. Cloudflare challenge URLs are always allowed through — Turnstile
+    // needs its own stylesheets and scripts to render and solve.
     const BLOCKED_TYPES = new Set(["image", "stylesheet", "font", "media", "ping", "cspReport"]);
     this._session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
+      if (isCloudflareUrl(details.url)) {
+        callback({ cancel: false });
+        return;
+      }
       callback({ cancel: BLOCKED_TYPES.has(details.resourceType) });
     });
 
@@ -87,32 +118,105 @@ class VintedClient {
       },
     });
 
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        console.log(`[vinted] Homepage load timed out for ${this._domain}`);
-        resolve();
-      }, 20000);
-
-      win.webContents.on("did-finish-load", () => {
-        clearTimeout(timer);
-        // Give Cloudflare JS a moment to set cookies.
-        setTimeout(resolve, 1500);
-      });
-
-      win.loadURL(this._baseUrl).catch((err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-    });
-
     this._win = win;
+    await this._navigateAndWaitForChallenge(this._baseUrl);
     this._windowReady = true;
     console.log(`[vinted] Browser window ready for ${this._domain}`);
     return win;
   }
 
   /**
-   * Tear down and reset the window (e.g. after persistent challenge failures).
+   * Navigate the BrowserWindow to a URL and wait for any Cloudflare
+   * challenge to resolve. Works for both initial homepage loads and
+   * mid-session challenge solving.
+   *
+   * Strategy: load the URL, then watch for either:
+   *   (a) `did-navigate` to a URL on our domain (CF solved, redirected), or
+   *   (b) `did-finish-load` on a non-challenge page (no CF, or CF already passed)
+   *
+   * A 30-second timeout acts as a safety net — if CF can't solve in that
+   * time, we resolve anyway and let the caller decide.
+   *
+   * @param {string} url  URL to navigate to (usually the homepage).
+   * @returns {Promise<void>}
+   */
+  async _navigateAndWaitForChallenge(url) {
+    const win = this._win;
+    if (!win || win.isDestroyed()) return;
+
+    const MAX_WAIT = 30_000;
+
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        console.warn(`[vinted] Challenge wait timed out after ${MAX_WAIT / 1000}s for ${this._domain}`);
+        resolve();
+      }, MAX_WAIT);
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        win.webContents.removeListener("did-navigate", onNavigate);
+        win.webContents.removeListener("did-finish-load", onFinishLoad);
+      };
+
+      const onNavigate = (_event, navUrl) => {
+        // Cloudflare redirects to our domain once the challenge is solved.
+        // Ignore navigations to challenge subdomains / cdn-cgi paths.
+        if (navUrl.startsWith(this._baseUrl) && !navUrl.includes("cdn-cgi/")) {
+          cleanup();
+          // Small buffer for final cookie writes after redirect.
+          setTimeout(resolve, 2000);
+        }
+      };
+
+      const onFinishLoad = () => {
+        const currentUrl = win.webContents.getURL();
+        // If we finished loading and it's our domain (not a challenge interstitial),
+        // we're done. If it's a CF challenge page, keep waiting for the redirect.
+        if (currentUrl.startsWith(this._baseUrl) && !currentUrl.includes("cdn-cgi/")) {
+          cleanup();
+          setTimeout(resolve, 2000);
+        }
+      };
+
+      win.webContents.on("did-navigate", onNavigate);
+      win.webContents.on("did-finish-load", onFinishLoad);
+
+      win.loadURL(url).catch((err) => {
+        cleanup();
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * Solve a Cloudflare challenge by navigating the existing BrowserWindow
+   * to the homepage. Cloudflare's JS executes naturally during the page
+   * load, computes the challenge response, sets the `cf_clearance` cookie,
+   * and redirects to the real page.
+   *
+   * Unlike `_resetWindow()`, this preserves the window and its cookies —
+   * destroying them would lose exactly the context Cloudflare needs.
+   *
+   * @returns {Promise<void>}
+   */
+  async _solveChallenge() {
+    if (!this._win || this._win.isDestroyed()) {
+      // Window was lost — fall back to full recreation.
+      this._windowReady = false;
+      this._win = null;
+      await this._ensureWindow();
+      return;
+    }
+
+    console.log(`[vinted] Navigating to homepage to solve Cloudflare challenge for ${this._domain}...`);
+    await this._navigateAndWaitForChallenge(this._baseUrl);
+  }
+
+  /**
+   * Tear down and reset the window. This is a last-resort fallback — it
+   * destroys the window and clears session cookies. Only used when the
+   * window itself is broken (e.g. renderer crash, disposed webContents).
    * @returns {Promise<void>}
    */
   async _resetWindow() {
@@ -162,14 +266,20 @@ class VintedClient {
           })
         `);
 
-        // Check for HTML challenge response (Cloudflare).
+        // Check for HTML response — could be a Cloudflare challenge or a
+        // genuine error page from Vinted's servers.
         if (result.contentType.includes("text/html")) {
-          console.log(`[vinted] HTML challenge on attempt ${tried}/${this._maxRetries} (status ${result.status})`);
-          if (isLast) throw new Error("Received HTML challenge page instead of JSON after all retry attempts");
-          await this._resetWindow();
-          const delay = this._retryBaseDelay * Math.pow(2, tried - 1);
-          await new Promise((r) => setTimeout(r, delay));
-          continue;
+          if (isCloudflareChallenge(result.body)) {
+            console.log(`[vinted] Cloudflare challenge on attempt ${tried}/${this._maxRetries} (status ${result.status})`);
+            if (isLast) throw new Error("Cloudflare challenge could not be solved after all retry attempts");
+            // Navigate the existing window to the homepage so Cloudflare's
+            // challenge JS can execute naturally and set cf_clearance.
+            await this._solveChallenge();
+            continue;
+          }
+          // Genuine HTML error from Vinted (e.g. geo-block, maintenance).
+          console.warn(`[vinted] Non-JSON HTML response on attempt ${tried}/${this._maxRetries} (status ${result.status})`);
+          throw new Error(`Vinted returned HTML (status ${result.status}) — not a Cloudflare challenge`);
         }
 
         const data = JSON.parse(result.body);

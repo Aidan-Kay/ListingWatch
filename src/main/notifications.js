@@ -58,7 +58,7 @@ function sendNotifications(items, settings, searches, mainWindow) {
     // (the renderer plays it directly via HTML5 Audio instead).
     const suppressOsChime = !settings.notificationSoundEnabled || Boolean(settings.notificationSoundFile);
     const notif = new Notification({
-      title: "ListingWatch",
+      title: "New Listing",
       body: `${item.searchName}: ${item.title}${item.price ? `  ·  ${item.price}` : ""}`,
       silent: suppressOsChime,
     });
@@ -67,7 +67,7 @@ function sendNotifications(items, settings, searches, mainWindow) {
   } else {
     const suppressOsChime = !settings.notificationSoundEnabled || Boolean(settings.notificationSoundFile);
     const notif = new Notification({
-      title: "ListingWatch",
+      title: "New Listings",
       body:
         filtered
           .map((i) => `${i.title}${i.price ? ` · ${i.price}` : ""}`)
