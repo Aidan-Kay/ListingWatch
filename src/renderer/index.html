@@ -207,6 +207,14 @@
               <option value="Auction">Auction</option>
               <option value="Buy It Now">Buy It Now</option>
             </select>
+            <!-- Active filter indicator -->
+            <button
+              id="filter-active-badge"
+              onclick="clearAllFilters()"
+              class="hidden text-xs font-medium text-accent-500 flex-shrink-0 hover:text-accent-400 transition-colors"
+            >
+              × Clear Filters
+            </button>
             <!-- Sort order -->
             <div class="ml-auto flex items-center gap-1.5 flex-shrink-0">
               <span class="text-xs text-neutral-500">Sort:</span>
@@ -217,14 +225,6 @@
                 <option value="price-desc">Price: High → Low</option>
               </select>
             </div>
-            <!-- Active filter indicator -->
-            <button
-              id="filter-active-badge"
-              onclick="clearAllFilters()"
-              class="hidden text-xs font-medium text-accent-500 flex-shrink-0 hover:text-accent-400 transition-colors"
-            >
-              × Clear Filters
-            </button>
           </div>
           <div id="feed-container" class="flex-1 overflow-y-auto p-4">
             <!-- Empty state -->

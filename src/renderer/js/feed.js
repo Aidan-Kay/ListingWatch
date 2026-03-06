@@ -24,9 +24,9 @@ const FORMAT_BADGE_LABELS = { "Buy It Now": "BIN", "Best Offer": "Offer" };
 let _filteredCount = 0;
 
 const ZOOM_CONFIG = {
-  small: { minCol: "300px", img: "w-24 h-24", title: "text-xs", price: "text-xs", meta: "text-xs" },
-  medium: { minCol: "400px", img: "w-28 h-28", title: "text-sm", price: "text-sm", meta: "text-xs" },
-  large: { minCol: "480px", img: "w-32 h-32", title: "text-base", price: "text-base", meta: "text-sm" },
+  small: { minCol: "300px", img: "w-24 h-24", title: "text-xs", price: "text-sm", meta: "text-xs" },
+  medium: { minCol: "400px", img: "w-28 h-28", title: "text-sm", price: "text-base", meta: "text-xs" },
+  large: { minCol: "480px", img: "w-32 h-32", title: "text-base", price: "text-lg", meta: "text-sm" },
 };
 
 function renderFeedCard(item, index, zoom) {
@@ -214,7 +214,7 @@ function updateFeedFilterSearchOptions() {
   select.innerHTML = '<option value="all">All Searches</option>';
 
   const GROUPS = [
-    { source: "ebay",   label: "eBay" },
+    { source: "ebay", label: "eBay" },
     { source: "vinted", label: "Vinted" },
   ];
 

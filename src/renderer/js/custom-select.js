@@ -69,8 +69,7 @@ class CustomSelect {
     this.labelSpan = labelSpan;
 
     const chevronWrap = document.createElement("span");
-    chevronWrap.className =
-      "flex-shrink-0 text-neutral-400 transition-transform duration-150";
+    chevronWrap.className = "flex-shrink-0 text-neutral-400 transition-transform duration-150";
     chevronWrap.innerHTML = this._isSmall
       ? `<svg class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>`
       : `<svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>`;
@@ -100,9 +99,7 @@ class CustomSelect {
           // Also guard against scrollbar clicks where the event target resolves
           // to an ancestor element (e.g. document.body) rather than the panel.
           const r = this.panel.getBoundingClientRect();
-          const inPanelBounds =
-            e.clientX >= r.left && e.clientX <= r.right &&
-            e.clientY >= r.top  && e.clientY <= r.bottom;
+          const inPanelBounds = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
           if (!inPanelBounds) this._close();
         }
       }),
@@ -197,11 +194,9 @@ class CustomSelect {
 
   _open() {
     // Close any other open panels first
-    document
-      .querySelectorAll(".custom-select-panel:not(.hidden)")
-      .forEach((p) => {
-        if (p !== this.panel) p.classList.add("hidden");
-      });
+    document.querySelectorAll(".custom-select-panel:not(.hidden)").forEach((p) => {
+      if (p !== this.panel) p.classList.add("hidden");
+    });
     // Update other buttons
     document.querySelectorAll(".custom-select-btn.border-accent-500").forEach((b) => {
       if (b !== this.btn) {
@@ -212,7 +207,8 @@ class CustomSelect {
     const rect = this.btn.getBoundingClientRect();
     this.panel.style.top = `${rect.bottom + 4}px`;
     this.panel.style.left = `${rect.left}px`;
-    this.panel.style.width = `${Math.max(rect.width, 160)}px`;
+    this.panel.style.width = "";
+    this.panel.style.minWidth = `${Math.max(rect.width, 160)}px`;
 
     // Flip up if not enough space below
     const spaceBelow = window.innerHeight - rect.bottom - 4;
@@ -230,9 +226,7 @@ class CustomSelect {
     this.chevronWrap.style.transform = "rotate(180deg)";
 
     // Scroll the selected option into view
-    const selected = this.panel.querySelector(
-      `[data-value="${CSS.escape(this.select.value)}"]`,
-    );
+    const selected = this.panel.querySelector(`[data-value="${CSS.escape(this.select.value)}"]`);
     if (selected) {
       requestAnimationFrame(() => selected.scrollIntoView({ block: "nearest" }));
     }
@@ -321,9 +315,7 @@ class CustomSelect {
     // Restore the native select and remove custom UI
     const wrapper = select.nextElementSibling;
     if (wrapper && wrapper.classList.contains("custom-select")) {
-      const panel = document.querySelector(
-        `.custom-select-panel[data-for="${select.id}"]`,
-      );
+      const panel = document.querySelector(`.custom-select-panel[data-for="${select.id}"]`);
       if (panel) panel.remove();
       wrapper.remove();
     }
