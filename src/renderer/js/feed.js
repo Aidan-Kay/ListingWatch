@@ -210,14 +210,30 @@ function updateFeedFilterSearchOptions() {
   const select = document.getElementById("filter-search");
   if (!select) return;
   const currentVal = feedFilters.searchId;
+
   select.innerHTML = '<option value="all">All Searches</option>';
-  searches.forEach((s) => {
-    const opt = document.createElement("option");
-    opt.value = s.id;
-    opt.textContent = s.name;
-    if (s.id === currentVal) opt.selected = true;
-    select.appendChild(opt);
-  });
+
+  const GROUPS = [
+    { source: "ebay",   label: "eBay" },
+    { source: "vinted", label: "Vinted" },
+  ];
+
+  for (const { source, label } of GROUPS) {
+    const groupSearches = searches.filter((s) => s.source === source);
+    if (groupSearches.length === 0) continue;
+
+    const group = document.createElement("optgroup");
+    group.label = label;
+    for (const s of groupSearches) {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.name;
+      if (s.id === currentVal) opt.selected = true;
+      group.appendChild(opt);
+    }
+    select.appendChild(group);
+  }
+
   // If the previously selected search no longer exists, reset to "all"
   if (feedFilters.searchId !== "all" && !searches.find((s) => s.id === feedFilters.searchId)) {
     feedFilters.searchId = "all";

@@ -84,6 +84,19 @@
   }
 }
 
+/* ─── Custom Select ────────────────────────────────────────────────────────── */
+.custom-select-panel {
+  scrollbar-width: thin;
+  scrollbar-color: #404040 transparent;
+}
+.custom-select-panel::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-select-panel::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 2px;
+}
+
 /* ─── Custom tooltips ──────────────────────────────────────────────────────── */
 [data-tooltip] {
   position: relative;
