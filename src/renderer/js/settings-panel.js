@@ -325,7 +325,11 @@ function updateStatus() {
   const enabled = searches.filter((s) => s.enabled);
   const errored = searches.filter((s) => s.error);
 
-  if (enabled.length === 0) {
+  if (_allPaused && enabled.length > 0) {
+    dot.className = "w-2 h-2 rounded-full bg-neutral-500 flex-shrink-0";
+    dot.title = "Paused — all searches are paused";
+    text.textContent = `${plural(enabled.length, "search", "searches")} paused`;
+  } else if (enabled.length === 0) {
     dot.className = "w-2 h-2 rounded-full bg-neutral-600 flex-shrink-0";
     dot.title = "Inactive — no searches are running";
     text.textContent = "No active searches";
