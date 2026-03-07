@@ -293,7 +293,8 @@ async function saveSearch() {
       const newColor = search.cardColor || null;
       let feedUpdated = false;
       feedItems.forEach((item) => {
-        if (item.searchId === search.id && item.cardColor !== newColor) {
+        const belongsToSearch = item.searchId === search.id || (Array.isArray(item.searchIds) && item.searchIds.includes(search.id));
+        if (belongsToSearch && item.cardColor !== newColor) {
           item.cardColor = newColor;
           feedUpdated = true;
         }
