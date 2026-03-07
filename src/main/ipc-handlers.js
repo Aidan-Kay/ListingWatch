@@ -291,14 +291,14 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   });
 
   // ─── Browser ────────────────────────────────────────────────────────────────
-  ipcMain.handle("open-external", (_event, url) => {
+  ipcMain.handle("open-external", async (_event, url) => {
     try {
       const parsed = new URL(url);
       if (!["http:", "https:"].includes(parsed.protocol)) {
         console.warn("[security] Blocked open-external for non-http(s) URL:", url);
         return;
       }
-      shell.openExternal(url);
+      await shell.openExternal(url);
     } catch {
       console.warn("[security] Invalid URL passed to open-external:", url);
     }
