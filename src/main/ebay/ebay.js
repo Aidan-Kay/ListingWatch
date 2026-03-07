@@ -299,7 +299,6 @@ async function search(query) {
       // Re-acquire token on each attempt so a mid-request 401 (stale token) is
       // automatically recovered on the next retry after invalidation.
       const token = await getAccessToken();
-      incrementApiCalls();
       const res = await _fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -325,6 +324,7 @@ async function search(query) {
     },
     { retries: 3, shouldRetry: (err) => err.status === 401 || isTransientError(err), label: `ebay:search:${query.name}` },
   );
+  incrementApiCalls();
 
   return parseApiResults(data, query);
 }
