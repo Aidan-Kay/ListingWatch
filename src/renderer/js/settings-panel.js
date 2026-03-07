@@ -307,6 +307,7 @@ async function importData() {
   if (result.ok) {
     searches = await window.api.getSearches();
     settings = await window.api.getSettings();
+    favourites = await window.api.getFavourites();
     applySettings();
     renderSearches();
     showToast(`Imported ${plural(result.searchCount, "search", "searches")} and settings`, "success");
