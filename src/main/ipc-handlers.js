@@ -268,20 +268,17 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   ipcMain.handle("test-proxy", async (_event, proxyUrl) => {
     if (!proxyUrl) return { ok: false, error: "No proxy URL provided" };
     try {
-      await session.defaultSession.setProxy({ proxyRules: proxyUrl });
+      // Use an isolated session so the test doesn't affect in-flight requests
+      // on the default session.
+      const testSession = session.fromPartition("temp:proxy-test");
+      await testSession.setProxy({ proxyRules: proxyUrl });
       const res = await require("electron").net.fetch("https://api.ipify.org?format=json", {
         signal: AbortSignal.timeout(8000),
+        session: testSession,
       });
       const data = await res.json();
-      // Restore the current live proxy setting
-      const settings = getSettings();
-      const liveRules = settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : "direct://";
-      await session.defaultSession.setProxy({ proxyRules: liveRules });
       return { ok: true, ip: data.ip };
     } catch (err) {
-      const settings = getSettings();
-      const liveRules = settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : "direct://";
-      session.defaultSession.setProxy({ proxyRules: liveRules }).catch(() => {});
       return { ok: false, error: err.message };
     }
   });
