@@ -5,6 +5,22 @@
 // Aspect filters   → aspect-filters.js
 // Vinted filters   → vinted-filters.js
 
+/** Parse a string to int, returning null for empty/non-numeric values (handles 0 correctly). */
+function parseIntOrNull(value) {
+  const trimmed = (value ?? "").toString().trim();
+  if (trimmed === "") return null;
+  const n = parseInt(trimmed, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+/** Parse a string to float, returning null for empty/non-numeric values (handles 0 correctly). */
+function parseFloatOrNull(value) {
+  const trimmed = (value ?? "").toString().trim();
+  if (trimmed === "") return null;
+  const n = parseFloat(trimmed);
+  return Number.isNaN(n) ? null : n;
+}
+
 function resetSearchForm() {
   document.getElementById("modal-search-id").value = "";
   const urlSection = document.getElementById("url-import-section");
@@ -258,9 +274,9 @@ function collectSearchFormData() {
           }))
       : [],
     cardColor: searchModalCardColor || null,
-    minInterval: parseInt(document.getElementById("modal-min-interval").value) || null,
-    maxInterval: parseInt(document.getElementById("modal-max-interval").value) || null,
-    maxNotifyPrice: parseFloat(document.getElementById("modal-max-notify-price").value) || null,
+    minInterval: parseIntOrNull(document.getElementById("modal-min-interval").value),
+    maxInterval: parseIntOrNull(document.getElementById("modal-max-interval").value),
+    maxNotifyPrice: parseFloatOrNull(document.getElementById("modal-max-notify-price").value),
     notify: searchModalNotify,
     enabled: searchModalEnabled,
   };
