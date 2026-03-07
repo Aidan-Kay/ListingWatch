@@ -79,6 +79,21 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   ipcMain.handle("get-searches", () => state.searches);
 
   ipcMain.handle("save-search", (_event, search) => {
+    // ─── Defensive validation ───────────────────────────────────────────
+    if (search.minInterval != null) {
+      search.minInterval = Math.max(30, Math.floor(Number(search.minInterval) || 30));
+    }
+    if (search.maxInterval != null) {
+      search.maxInterval = Math.max(
+        search.minInterval || 30,
+        Math.floor(Number(search.maxInterval) || 120),
+      );
+    }
+    if (search.maxNotifyPrice != null) {
+      const parsed = Number(search.maxNotifyPrice);
+      search.maxNotifyPrice = Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    }
+
     const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
 
     if (search.id) {
