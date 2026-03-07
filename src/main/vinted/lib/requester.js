@@ -56,6 +56,7 @@ class VintedClient {
     this._win = null;
     this._windowReady = false;
     this._windowInitPromise = null;
+    this._resourceBlockerRegistered = false;
 
     // Configure proxy on the session (resolves almost instantly).
     this._proxyReady = proxy ? this._session.setProxy({ proxyRules: proxy }) : Promise.resolve();
@@ -97,14 +98,19 @@ class VintedClient {
     // the surface area for network-service crashes caused by media/image
     // fetches. Cloudflare challenge URLs are always allowed through — Turnstile
     // needs its own stylesheets and scripts to render and solve.
-    const BLOCKED_TYPES = new Set(["image", "stylesheet", "font", "media", "ping", "cspReport"]);
-    this._session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
-      if (isCloudflareUrl(details.url)) {
-        callback({ cancel: false });
-        return;
-      }
-      callback({ cancel: BLOCKED_TYPES.has(details.resourceType) });
-    });
+    // Only register once per session — Electron silently replaces the previous
+    // handler on each call, so re-registering is harmless but wasteful.
+    if (!this._resourceBlockerRegistered) {
+      const BLOCKED_TYPES = new Set(["image", "stylesheet", "font", "media", "ping", "cspReport"]);
+      this._session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
+        if (isCloudflareUrl(details.url)) {
+          callback({ cancel: false });
+          return;
+        }
+        callback({ cancel: BLOCKED_TYPES.has(details.resourceType) });
+      });
+      this._resourceBlockerRegistered = true;
+    }
 
     const win = new BrowserWindow({
       show: false,
