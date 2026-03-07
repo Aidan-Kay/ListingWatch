@@ -54,6 +54,7 @@ function applyAccentColor(color) {
     document.head.appendChild(style);
   }
   style.textContent = `
+    :root { --accent: ${color}; }
     .btn-primary { background-color: ${color} !important; }
     .btn-primary:hover { background-color: ${dark} !important; }
     .nav-item.active { color: ${color} !important; border-color: ${color} !important; }

@@ -7,6 +7,8 @@
 
 function resetSearchForm() {
   document.getElementById("modal-search-id").value = "";
+  const urlSection = document.getElementById("url-import-section");
+  if (urlSection) urlSection.classList.add("hidden");
   document.getElementById("modal-name").value = "";
   document.getElementById("modal-source").value = "ebay";
   setSearchModalSource("ebay");
@@ -14,6 +16,7 @@ function resetSearchForm() {
   document.getElementById("modal-vinted-site").value = "UK";
   document.getElementById("modal-vinted-category").value = "";
   document.getElementById("modal-keywords").value = "";
+  document.getElementById("modal-exclude-keywords").value = "";
   document.getElementById("modal-category").value = "";
   document.getElementById("modal-category-l1").innerHTML = '<option value="">— Browse top-level categories —</option>';
   document.getElementById("modal-category-l2").innerHTML = '<option value="">All sub-categories</option>';
@@ -47,6 +50,9 @@ function populateSearchForm(search) {
     document.getElementById("modal-site").value = search.site || "UK";
   }
   document.getElementById("modal-keywords").value = search.keywords || "";
+  document.getElementById("modal-exclude-keywords").value = Array.isArray(search.excludeKeywords)
+    ? search.excludeKeywords.join(", ")
+    : search.excludeKeywords || "";
   document.getElementById("modal-category").value = search.category || "";
   document.getElementById("modal-min-price").value = search.minPrice || "";
   document.getElementById("modal-max-price").value = search.maxPrice || "";
@@ -78,6 +84,10 @@ async function openSearchModal(id) {
   } else {
     titleEl.textContent = "Add Search";
   }
+
+  // Show the "Import from URL" button only when adding new searches
+  const urlToggle = document.getElementById("url-import-toggle");
+  if (urlToggle) urlToggle.classList.toggle("hidden", !!id);
 
   modal.classList.remove("hidden");
   modal.classList.add("flex");
@@ -197,6 +207,13 @@ function collectSearchFormData() {
   const isVinted = source === "vinted";
 
   const keywords = document.getElementById("modal-keywords").value.trim();
+  const excludeKeywordsRaw = document.getElementById("modal-exclude-keywords").value.trim();
+  const excludeKeywords = excludeKeywordsRaw
+    ? excludeKeywordsRaw
+        .split(",")
+        .map((k) => k.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
   const vintedCategory = isVinted ? document.getElementById("modal-vinted-category").value || null : null;
   const category = isVinted ? "" : document.getElementById("modal-category").value.trim();
   if (!keywords && !category) {
@@ -213,6 +230,7 @@ function collectSearchFormData() {
     name,
     site,
     keywords,
+    excludeKeywords,
     category: isVinted ? null : category,
     vintedCategory: isVinted ? vintedCategory : null,
     minPrice: document.getElementById("modal-min-price").value || null,

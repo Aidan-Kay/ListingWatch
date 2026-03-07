@@ -84,7 +84,6 @@ function renderFeedCard(item, index, zoom) {
               <button
                 class="fav-btn transition-colors z-10 p-1 rounded ${isFavourited ? "text-yellow-400" : "text-neutral-400 hover:bg-neutral-700"}"
                 onclick="event.stopPropagation(); toggleFavourite('${escapeAttr(item.id)}')"
-                data-tooltip="${isFavourited ? "Remove from favourites" : "Add to favourites"}"
               >
                 <svg class="w-5 h-5" fill="${isFavourited ? "currentColor" : "none"}" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
@@ -136,16 +135,12 @@ function parsePriceNumeric(str) {
 }
 
 /**
- * Returns a filtered copy of `items` based on the current `feedFilters` state.
- * The backing `feedItems` array is never modified — filters are display-only.
+ * Pure filter function: returns items matching the given filter criteria.
+ * Shared between the feed and favourites pages.
  */
-function applyFeedFilters(items) {
-  const { text, platform, searchId, buyingFormat } = feedFilters;
+function filterItems(items, filters) {
+  const { text, platform, searchId, buyingFormat } = filters;
   const hasActiveFilter = text || platform !== "all" || searchId !== "all" || buyingFormat !== "all";
-
-  const clearBtn = document.getElementById("filter-active-badge");
-  if (clearBtn) clearBtn.classList.toggle("hidden", !hasActiveFilter);
-
   if (!hasActiveFilter) return items;
 
   const lowerText = text.toLowerCase();
@@ -162,14 +157,36 @@ function applyFeedFilters(items) {
 }
 
 /**
+ * Returns a filtered copy of `items` based on the current `feedFilters` state.
+ * The backing `feedItems` array is never modified — filters are display-only.
+ */
+function applyFeedFilters(items) {
+  const hasActiveFilter =
+    feedFilters.text || feedFilters.platform !== "all" || feedFilters.searchId !== "all" || feedFilters.buyingFormat !== "all";
+
+  const clearBtn = document.getElementById("filter-active-badge");
+  if (clearBtn) clearBtn.classList.toggle("hidden", !hasActiveFilter);
+
+  return filterItems(items, feedFilters);
+}
+
+/**
  * Returns a sorted copy of `items` based on the given sort order.
  * Does not modify the source array. Price sorting uses raw numeric values;
  * items with no parseable price sort to the end.
  */
+/**
+ * Extract a numeric timestamp from an item's listing date (preferred) or
+ * found-at date (fallback). Used for chronological sorting.
+ */
+function itemListingTime(item) {
+  return new Date(item.listingDate || item.foundAt).getTime();
+}
+
 function sortFeedItems(items, order) {
-  if (order === "newest") return items; // feedItems is already newest-first
   const copy = [...items];
-  if (order === "oldest") return copy.reverse();
+  if (order === "newest") return copy.sort((a, b) => itemListingTime(b) - itemListingTime(a));
+  if (order === "oldest") return copy.sort((a, b) => itemListingTime(a) - itemListingTime(b));
   if (order === "price-asc") return copy.sort((a, b) => parsePriceNumeric(a.price) - parsePriceNumeric(b.price));
   if (order === "price-desc") return copy.sort((a, b) => parsePriceNumeric(b.price) - parsePriceNumeric(a.price));
   return copy;
@@ -203,13 +220,12 @@ function setFeedSort(order) {
 }
 
 /**
- * Repopulate the saved-search dropdown in the filter bar with the current
- * list of searches. Call after searches are loaded or mutated.
+ * Populate a saved-search dropdown select element with grouped options.
+ * Reusable for both the feed and favourites filter bars.
  */
-function updateFeedFilterSearchOptions() {
-  const select = document.getElementById("filter-search");
+function populateSearchFilterDropdown(selectId, currentVal) {
+  const select = document.getElementById(selectId);
   if (!select) return;
-  const currentVal = feedFilters.searchId;
 
   select.innerHTML = '<option value="all">All Searches</option>';
 
@@ -233,6 +249,15 @@ function updateFeedFilterSearchOptions() {
     }
     select.appendChild(group);
   }
+}
+
+/**
+ * Repopulate the saved-search dropdown in both the feed and favourites filter
+ * bars with the current list of searches. Call after searches are loaded or mutated.
+ */
+function updateFeedFilterSearchOptions() {
+  populateSearchFilterDropdown("filter-search", feedFilters.searchId);
+  populateSearchFilterDropdown("fav-filter-search", favouritesFilters.searchId);
 
   // If the previously selected search no longer exists, reset to "all"
   if (feedFilters.searchId !== "all" && !searches.find((s) => s.id === feedFilters.searchId)) {
@@ -240,6 +265,12 @@ function updateFeedFilterSearchOptions() {
     const filterSearchEl = document.getElementById("filter-search");
     if (filterSearchEl) filterSearchEl.value = "all";
     renderFeed();
+  }
+  if (favouritesFilters.searchId !== "all" && !searches.find((s) => s.id === favouritesFilters.searchId)) {
+    favouritesFilters.searchId = "all";
+    const favSearchEl = document.getElementById("fav-filter-search");
+    if (favSearchEl) favSearchEl.value = "all";
+    if (currentPage === "favourites") renderFavourites();
   }
 }
 
@@ -367,7 +398,7 @@ async function clearFeed() {
 function prependFeedItems(newItems) {
   if (!newItems.length) return;
 
-  // Non-default sort: new items may not belong at the top — rebuild the whole feed.
+  // Non-default sort or price sort: new items may not belong at the top — rebuild.
   if (feedSortOrder !== "newest") {
     renderFeed();
     return;
@@ -377,6 +408,19 @@ function prependFeedItems(newItems) {
   if (feedItems.length === newItems.length) {
     renderFeed();
     return;
+  }
+
+  // Check if the new items are actually newer (by listing time) than the
+  // existing top item. If not, a full re-render is needed to maintain order.
+  const grid = document.getElementById("feed-grid");
+  if (grid && grid.firstElementChild) {
+    const oldestNewTime = Math.min(...newItems.map(itemListingTime));
+    const topExistingId = grid.firstElementChild.dataset.itemId;
+    const topExisting = feedItems.find((i) => i.id === topExistingId);
+    if (topExisting && oldestNewTime < itemListingTime(topExisting)) {
+      renderFeed();
+      return;
+    }
   }
 
   // Filter the incoming items — only render those matching active filters.
@@ -390,14 +434,16 @@ function prependFeedItems(newItems) {
   if (visibleNewItems.length === 0) return; // All new items filtered out — no DOM changes needed
 
   const empty = document.getElementById("feed-empty");
-  const grid = document.getElementById("feed-grid");
   empty.classList.add("hidden");
   grid.classList.remove("hidden");
   const zoom = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
   grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
 
+  // Sort the new items by listing time (descending) before DOM insertion
+  const sortedNew = [...visibleNewItems].sort((a, b) => itemListingTime(b) - itemListingTime(a));
+
   const fragment = document.createDocumentFragment();
-  visibleNewItems.forEach((item, i) => {
+  sortedNew.forEach((item, i) => {
     const wrapper = document.createElement("div");
     wrapper.innerHTML = renderFeedCard(item, i, zoom).trim();
     if (wrapper.firstElementChild) fragment.appendChild(wrapper.firstElementChild);

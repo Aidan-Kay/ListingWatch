@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, Tray, Menu, screen, session } = require("electron");
+const { app, BrowserWindow, Tray, Menu, screen, session, powerMonitor, net } = require("electron");
 const path = require("path");
 const log = require("electron-log/main");
 
@@ -221,6 +221,32 @@ app.whenReady().then(() => {
 
   const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
   startAllSearches(state, onNewItems, onStatus, getSettings);
+});
+
+// ─── Power / Connectivity ─────────────────────────────────────────────────────
+// When the PC resumes from sleep, the network stack often isn't ready yet.
+// Searches that fire immediately will fail, and without this handler those
+// failures would trigger exponential backoff, making the user wait a long time.
+// Instead we wait for connectivity, reset error counters, and restart polling.
+powerMonitor.on("resume", () => {
+  console.log("[power] System resumed from sleep — waiting for connectivity...");
+
+  function checkAndRestart() {
+    if (net.isOnline()) {
+      console.log("[power] Internet available — restarting all searches");
+      for (const search of state.searches) {
+        search._errorCount = 0;
+      }
+      stopAllSearches(state);
+      const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
+      startAllSearches(state, onNewItems, onStatus, getSettings);
+    } else {
+      setTimeout(checkAndRestart, 3000);
+    }
+  }
+
+  // Give the OS network stack a moment to initialise.
+  setTimeout(checkAndRestart, 2000);
 });
 
 app.on("before-quit", () => {

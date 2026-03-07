@@ -126,6 +126,28 @@ setInterval(() => {
   });
 }, 5000);
 
+// ─── Scroll-wheel increment/decrement for number inputs ──────────────────────
+document.addEventListener(
+  "wheel",
+  (e) => {
+    if (e.target.tagName === "INPUT" && e.target.type === "number") {
+      e.preventDefault();
+      const input = e.target;
+      const step = parseFloat(input.step) || 1;
+      const current = parseFloat(input.value) || 0;
+      const delta = e.deltaY < 0 ? step : -step;
+      let next = +(current + delta).toFixed(10); // avoid float rounding
+      const min = input.min !== "" ? parseFloat(input.min) : -Infinity;
+      const max = input.max !== "" ? parseFloat(input.max) : Infinity;
+      next = Math.max(min, Math.min(max, next));
+      input.value = next;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  },
+  { passive: false },
+);
+
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 // Single listener handles all keyboard shortcuts app-wide.
 document.addEventListener("keydown", (e) => {

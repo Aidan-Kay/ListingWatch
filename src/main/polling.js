@@ -49,17 +49,36 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
   try {
     const items = search.source === "vinted" ? await vinted.search(search) : await ebay.search(search);
 
+    // Client-side exclude-keyword filtering: drop any item whose title
+    // contains one of the user's excluded words/phrases.
+    const excludeKeywords = Array.isArray(search.excludeKeywords) ? search.excludeKeywords : [];
+    const filteredItems =
+      excludeKeywords.length > 0
+        ? items.filter((item) => {
+            const title = (item.title || "").toLowerCase();
+            return !excludeKeywords.some((kw) => title.includes(kw));
+          })
+        : items;
+
     const isInit = !state.initialised[search.id];
     // Per-search seen-ID set: O(1) lookup/add, O(1) delete when search is removed.
     const searchSeenIds = (state.seenIds[search.id] ??= new Set());
-    const newItems = [];
 
+    // Collect IDs of all raw items (including excluded) so we can mark them
+    // as seen without re-announcing them if exclude keywords are later changed.
+    const previouslySeen = new Set(searchSeenIds);
+
+    // Mark every returned item as seen (excluded or not).
     for (const item of items) {
-      if (!searchSeenIds.has(item.itemId)) {
-        searchSeenIds.add(item.itemId);
-        item.searchIds = [item.searchId]; // Always initialise as single-element array
-        newItems.push(item);
-      }
+      searchSeenIds.add(item.itemId);
+    }
+
+    // Only items that passed the exclude filter AND weren't previously seen
+    // are truly new.
+    const newItems = filteredItems.filter((item) => !previouslySeen.has(item.itemId));
+    // Initialise searchIds on all new items
+    for (const item of newItems) {
+      item.searchIds = [item.searchId];
     }
 
     // Prune seenIds to cap memory usage. V8 Sets preserve insertion order so
@@ -87,11 +106,15 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       if (initialItems.length > 0) {
         pushToFeed(state, initialItems);
         onNewItems(initialItems, true);
+        const excludedCount = items.length - filteredItems.length;
+        const excludedNote = excludedCount > 0 ? `, ${excludedCount} excluded` : "";
         console.log(
-          `[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen, ${initialItems.length} from last ${showHours}h added to feed`,
+          `[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen${excludedNote}, ${initialItems.length} from last ${showHours}h added to feed`,
         );
       } else {
-        console.log(`[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen, none added to feed`);
+        const excludedCount = items.length - filteredItems.length;
+        const excludedNote = excludedCount > 0 ? `, ${excludedCount} excluded` : "";
+        console.log(`[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen${excludedNote}, none added to feed`);
       }
       onStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
     } else if (newItems.length > 0) {
@@ -124,8 +147,14 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
     }
   } catch (err) {
     console.error(`[${search.source}] [${search.name}] Fetch error:`, err.message);
-    // Increment error counter so scheduleNext can apply exponential backoff.
-    search._errorCount = (search._errorCount || 0) + 1;
+    // Only apply exponential backoff for non-connectivity errors.
+    // No-internet errors (DNS failure, network unreachable) use normal intervals
+    // so the app recovers quickly once connectivity is restored.
+    if (!isNoInternetError(err)) {
+      search._errorCount = (search._errorCount || 0) + 1;
+    } else {
+      console.warn(`[${search.source}] [${search.name}] No internet — will retry at normal interval (no backoff)`);
+    }
     onStatus(search.id, { error: err.message });
   }
 }
@@ -207,6 +236,29 @@ function startAllSearches(state, onNewItems, onStatus, getSettings) {
       scheduleSearch(search, state, onNewItems, onStatus, getSettings);
     }
   }
+}
+
+/**
+ * Determine whether an error indicates the machine has no internet connectivity.
+ * These errors should not trigger exponential backoff — the app should retry at
+ * normal intervals so it recovers quickly when connectivity is restored.
+ */
+function isNoInternetError(err) {
+  if (
+    err.code === "ENOTFOUND" ||
+    err.code === "ENETUNREACH" ||
+    err.code === "EAI_AGAIN" ||
+    err.code === "ENETDOWN" ||
+    err.code === "EHOSTUNREACH"
+  ) {
+    return true;
+  }
+  // Generic fetch failures when truly offline often surface as TypeError
+  // with messages about network access.
+  if (err.name === "TypeError" && /fetch failed|network/i.test(err.message)) {
+    return true;
+  }
+  return false;
 }
 
 module.exports = {

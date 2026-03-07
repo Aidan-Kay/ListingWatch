@@ -9,6 +9,8 @@ let allPaused = false;
 let feedSortOrder = "newest";
 let feedFilters = { text: "", platform: "all", searchId: "all", buyingFormat: "all" };
 let favourites = [];
+let favouritesSortOrder = "newest";
+let favouritesFilters = { text: "", platform: "all", searchId: "all", buyingFormat: "all" };
 
 // Search modal state  (prefixed searchModal to distinguish from future modals)
 let searchModalEnabled = true;

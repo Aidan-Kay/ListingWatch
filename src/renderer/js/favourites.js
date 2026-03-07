@@ -49,22 +49,63 @@ async function toggleFavourite(itemId) {
 /**
  * Render the favourites grid with the current `favourites` array.
  * Uses the same card renderer as the main feed.
+ * Applies favourites-specific filters and sorting.
  */
 function renderFavourites() {
   const grid = document.getElementById("favourites-grid");
   const empty = document.getElementById("favourites-empty");
   if (!grid || !empty) return;
 
+  // Update filter active badge
+  const hasActiveFilter =
+    favouritesFilters.text ||
+    favouritesFilters.platform !== "all" ||
+    favouritesFilters.searchId !== "all" ||
+    favouritesFilters.buyingFormat !== "all";
+  const filterBadge = document.getElementById("fav-filter-active-badge");
+  if (filterBadge) filterBadge.classList.toggle("hidden", !hasActiveFilter);
+
   if (favourites.length === 0) {
     grid.innerHTML = "";
     empty.classList.remove("hidden");
+    const subtitle = empty.querySelector(".text-xs");
+    if (subtitle) subtitle.textContent = "Star a listing in the feed to save it here";
+    return;
+  }
+
+  const filtered = filterItems(favourites, favouritesFilters);
+  const sorted = sortFeedItems(filtered, favouritesSortOrder);
+
+  // Update subtitle
+  updateFavouritesSubtitle(filtered.length, favourites.length);
+
+  if (sorted.length === 0) {
+    grid.innerHTML = "";
+    empty.classList.remove("hidden");
+    const subtitle = empty.querySelector(".text-xs");
+    if (subtitle) subtitle.textContent = "No favourites match the current filters";
     return;
   }
 
   empty.classList.add("hidden");
   const zoom = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
   grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
-  grid.innerHTML = favourites.map((item, i) => renderFeedCard(item, i, zoom)).join("");
+  grid.innerHTML = sorted.map((item, i) => renderFeedCard(item, i, zoom)).join("");
+}
+
+/**
+ * Update the favourites page subtitle in the header with count info.
+ */
+function updateFavouritesSubtitle(filteredCount, totalCount) {
+  const subtitleEl = document.getElementById("header-subtitle");
+  if (!subtitleEl || currentPage !== "favourites") return;
+  if (totalCount === 0) {
+    subtitleEl.textContent = "Your saved listings";
+  } else if (filteredCount !== totalCount) {
+    subtitleEl.textContent = `${filteredCount} of ${plural(totalCount, "favourite")} (filtered)`;
+  } else {
+    subtitleEl.textContent = plural(totalCount, "favourite");
+  }
 }
 
 /**
@@ -94,4 +135,46 @@ async function clearFavourites() {
   formerIds.forEach((id) => updateFavStars(id, false));
   renderFavourites();
   updateFavouritesHeader();
+}
+
+// ─── Favourites Filter & Sort Controls ────────────────────────────────────────
+
+/** Update a single favourites filter key and re-render. */
+function setFavouritesFilter(key, value) {
+  favouritesFilters[key] = value;
+  if (key === "text") {
+    const clearBtn = document.getElementById("fav-filter-text-clear");
+    if (clearBtn) clearBtn.classList.toggle("hidden", !value);
+  }
+  renderFavourites();
+}
+
+/** Clear the favourites text filter input and re-render. */
+function clearFavouritesTextFilter() {
+  favouritesFilters.text = "";
+  const input = document.getElementById("fav-filter-text");
+  if (input) input.value = "";
+  const clearBtn = document.getElementById("fav-filter-text-clear");
+  if (clearBtn) clearBtn.classList.add("hidden");
+  renderFavourites();
+}
+
+/** Reset all favourites filters to defaults and re-render. */
+function clearAllFavouritesFilters() {
+  favouritesFilters = { text: "", platform: "all", searchId: "all", buyingFormat: "all" };
+  const textEl = document.getElementById("fav-filter-text");
+  const platformEl = document.getElementById("fav-filter-platform");
+  const searchEl = document.getElementById("fav-filter-search");
+  const formatEl = document.getElementById("fav-filter-format");
+  if (textEl) textEl.value = "";
+  if (platformEl) platformEl.value = "all";
+  if (searchEl) searchEl.value = "all";
+  if (formatEl) formatEl.value = "all";
+  renderFavourites();
+}
+
+/** Update the favourites sort order and re-render. */
+function setFavouritesSort(order) {
+  favouritesSortOrder = order;
+  renderFavourites();
 }

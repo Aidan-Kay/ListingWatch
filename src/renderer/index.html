@@ -274,7 +274,87 @@
 
         <!-- Favourites Page -->
         <div id="page-favourites" class="page flex-1 flex flex-col overflow-hidden hidden">
-          <div class="flex-1 overflow-y-auto p-4">
+          <!-- Favourites Filter Bar -->
+          <div
+            id="fav-filter-bar"
+            class="flex-shrink-0 border-b border-neutral-700 bg-neutral-900 px-4 py-2 flex items-center gap-2 flex-wrap"
+          >
+            <!-- Text search -->
+            <div class="relative flex-1 min-w-[150px] max-w-xs">
+              <input
+                id="fav-filter-text"
+                type="text"
+                placeholder="Filter favourites..."
+                class="input-field py-1.5 pr-8 text-xs"
+                oninput="setFavouritesFilter('text', this.value)"
+              />
+              <button
+                id="fav-filter-text-clear"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-secondary hidden"
+                onclick="clearFavouritesTextFilter()"
+                title="Clear text filter"
+              >
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <!-- Platform filter -->
+            <select
+              id="fav-filter-platform"
+              class="select-field py-1.5 text-xs w-auto"
+              style="min-width: 120px"
+              onchange="setFavouritesFilter('platform', this.value)"
+            >
+              <option value="all">All Platforms</option>
+              <option value="ebay">eBay</option>
+              <option value="vinted">Vinted</option>
+            </select>
+            <!-- Saved search filter -->
+            <select
+              id="fav-filter-search"
+              class="select-field py-1.5 text-xs w-auto"
+              style="min-width: 130px"
+              onchange="setFavouritesFilter('searchId', this.value)"
+            >
+              <option value="all">All Searches</option>
+            </select>
+            <!-- Buying format filter -->
+            <select
+              id="fav-filter-format"
+              class="select-field py-1.5 text-xs w-auto"
+              style="min-width: 120px"
+              onchange="setFavouritesFilter('buyingFormat', this.value)"
+            >
+              <option value="all">All Formats</option>
+              <option value="Auction">Auction</option>
+              <option value="Buy It Now">Buy It Now</option>
+            </select>
+            <!-- Active filter indicator -->
+            <button
+              id="fav-filter-active-badge"
+              onclick="clearAllFavouritesFilters()"
+              class="hidden text-xs font-medium text-accent-500 flex-shrink-0 hover:text-accent-400 transition-colors"
+            >
+              × Clear Filters
+            </button>
+            <!-- Sort order -->
+            <div class="ml-auto flex items-center gap-1.5 flex-shrink-0">
+              <span class="text-xs text-neutral-500">Sort:</span>
+              <select
+                id="fav-sort"
+                class="select-field py-1.5 text-xs w-auto"
+                style="min-width: 140px"
+                onchange="setFavouritesSort(this.value)"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="price-asc">Price: Low → High</option>
+                <option value="price-desc">Price: High → Low</option>
+              </select>
+            </div>
+          </div>
+          <div id="fav-container" class="flex-1 overflow-y-auto p-4">
             <!-- Empty state -->
             <div id="favourites-empty" class="flex flex-col items-center justify-center h-full text-center">
               <div class="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center mb-3">
@@ -840,18 +920,54 @@
     <!-- Search Modal -->
     <div id="search-modal" class="fixed inset-0 bg-black/60 z-80 hidden items-center justify-center" onclick="closeSearchModal(event)">
       <div
-        class="bg-neutral-800 border border-neutral-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl animate-fade-in"
+        class="bg-neutral-800 border border-neutral-700 rounded-xl w-full max-w-xl mx-4 shadow-2xl animate-fade-in"
         onclick="event.stopPropagation()"
       >
         <div class="flex items-center justify-between px-5 py-4 border-b border-neutral-700">
           <h2 id="modal-title" class="text-sm font-semibold text-secondary">Add Search</h2>
-          <button onclick="closeSearchModal()" class="text-neutral-500 hover:text-secondary transition-colors">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              id="url-import-toggle"
+              onclick="toggleUrlImport()"
+              class="text-xs text-neutral-400 hover:text-accent-500 transition-colors flex items-center gap-1"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.193-9.193a4.5 4.5 0 00-6.364 0l-4.5 4.5a4.5 4.5 0 001.242 7.244"
+                />
+              </svg>
+              Import from URL
+            </button>
+            <button onclick="closeSearchModal()" class="text-neutral-500 hover:text-secondary transition-colors">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="p-5 space-y-5 overflow-y-auto max-h-[80vh]">
+          <!-- URL Import -->
+          <div id="url-import-section" class="hidden">
+            <div class="flex gap-2">
+              <input
+                id="url-import-input"
+                type="text"
+                class="input-field flex-1"
+                placeholder="Paste an eBay or Vinted search URL..."
+                onkeydown="
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    importSearchFromUrl();
+                  }
+                "
+              />
+              <button type="button" onclick="importSearchFromUrl()" class="btn-primary text-xs px-3 py-2 flex-shrink-0">Import</button>
+            </div>
+            <p class="text-xs text-neutral-500 mt-1">Paste a search URL to auto-fill the form fields below.</p>
+          </div>
+
           <input type="hidden" id="modal-search-id" />
           <input type="hidden" id="modal-source" value="ebay" />
 
@@ -919,6 +1035,13 @@
           <div>
             <label class="label">Keywords</label>
             <input id="modal-keywords" type="text" class="input-field" placeholder="e.g. PS5 console" />
+          </div>
+
+          <!-- Exclude Keywords -->
+          <div>
+            <label class="label">Exclude Keywords</label>
+            <input id="modal-exclude-keywords" type="text" class="input-field" placeholder="e.g. broken, faulty, spares" />
+            <p class="text-xs text-neutral-500 mt-1">Comma-separated. Listings with any of these words in the title will be hidden.</p>
           </div>
 
           <!-- Section divider: Filters -->
@@ -1301,6 +1424,7 @@
     <script src="js/condition-select.js"></script>
     <script src="js/aspect-filters.js"></script>
     <script src="js/vinted-filters.js"></script>
+    <script src="js/url-import.js"></script>
     <script src="js/search-modal.js"></script>
     <script src="js/settings-panel.js"></script>
     <script src="js/favourites.js"></script>
