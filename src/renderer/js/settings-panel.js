@@ -343,19 +343,24 @@ function updateStatus() {
       pauseBtn.classList.add("hidden");
     } else {
       pauseBtn.classList.remove("hidden");
-      pauseBtn.textContent = allPaused || enabled.length === 0 ? "Resume All" : "Pause All";
+      const anyEnabled = searches.some((s) => s.enabled);
+      pauseBtn.textContent = anyEnabled && !_allPaused ? "Pause All" : "Resume All";
     }
   }
 }
 
+// Tracks whether the user has explicitly paused all searches via the button.
+// This is separate from individual search.enabled states — pauseAll stops
+// polling timers without changing enabled flags.
+let _allPaused = false;
+
 async function togglePauseAll() {
-  const anyEnabled = searches.some((s) => s.enabled) && !allPaused;
-  if (anyEnabled) {
-    allPaused = true;
+  if (!_allPaused) {
+    _allPaused = true;
     await window.api.pauseAll();
     showToast("All searches paused", "info");
   } else {
-    allPaused = false;
+    _allPaused = false;
     await window.api.resumeAll();
     showToast("All searches resumed", "info");
   }
