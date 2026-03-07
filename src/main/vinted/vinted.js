@@ -73,9 +73,7 @@ async function search(query) {
     const images =
       Array.isArray(raw.photos) && raw.photos.length > 0
         ? raw.photos.map((p) => p.full_size_url || p.url).filter(Boolean)
-        : item.photo
-          ? [item.photo]
-          : [];
+        : [item.photo].filter(Boolean);
     return {
       id: `${query.id}_${item.id}`,
       itemId: String(item.id),
