@@ -282,6 +282,15 @@ class VintedClient {
           throw new Error(`Vinted returned HTML (status ${result.status}) — not a Cloudflare challenge`);
         }
 
+        // A 401 means the session cookies have expired. Re-navigate to the
+        // homepage to establish a fresh session, then retry the request.
+        if (result.status === 401) {
+          console.log(`[vinted] 401 Unauthorised on attempt ${tried}/${this._maxRetries} — refreshing session for ${this._domain}...`);
+          if (isLast) throw new Error("Vinted API returned 401 and session could not be refreshed after all retry attempts");
+          await this._navigateAndWaitForChallenge(this._baseUrl);
+          continue;
+        }
+
         const data = JSON.parse(result.body);
         return { status: result.status, data };
       } catch (err) {
