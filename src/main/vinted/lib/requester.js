@@ -363,6 +363,7 @@ function getRequester(domain) {
  */
 function configureRequesterProxy(proxyUrl) {
   _activeProxy = proxyUrl || null;
+  for (const client of _requesters.values()) client.destroy();
   _requesters.clear();
   if (_activeProxy) {
     console.log(`[vinted] Proxy configured: ${_activeProxy}`);
