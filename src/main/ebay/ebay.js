@@ -201,11 +201,13 @@ async function loadCategoryTree(site) {
   }
 
   const treeId = CATEGORY_TREE_IDS[site] || "0";
-  const token = await getAccessToken();
   const marketplaceId = MARKETPLACE_IDS[site] || "EBAY_US";
 
   const data = await withRetry(
     async () => {
+      // Re-acquire token on each attempt so a stale token (expired between
+      // acquisition and the API call) is recovered on retry after invalidation.
+      const token = await getAccessToken();
       const res = await _fetch(`https://api.ebay.com/commerce/taxonomy/v1/category_tree/${treeId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -214,6 +216,12 @@ async function loadCategoryTree(site) {
         signal: AbortSignal.timeout(30000),
       });
 
+      if (res.status === 401) {
+        invalidateToken();
+        const err = new Error("eBay token rejected in category tree fetch (401) — will retry with fresh token");
+        err.status = 401;
+        throw err;
+      }
       if (!res.ok) {
         const text = await res.text();
         const err = new Error(`Category tree fetch failed (${res.status}): ${text.slice(0, 100)}`);
@@ -223,7 +231,7 @@ async function loadCategoryTree(site) {
 
       return await res.json();
     },
-    { retries: 3, label: `ebay:categories:${site}` },
+    { retries: 3, shouldRetry: (err) => err.status === 401 || isTransientError(err), label: `ebay:categories:${site}` },
   );
   const categories = [];
 
