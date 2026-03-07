@@ -154,12 +154,20 @@ function appConfirm(message, confirmLabel = "Confirm", dangerMode = true) {
       overlay.remove();
       resolve(result);
     };
-    overlay.querySelector("#_confirm-ok").onclick = () => cleanup(true);
-    overlay.querySelector("#_confirm-cancel").onclick = () => cleanup(false);
+    const okBtn = overlay.querySelector("#_confirm-ok");
+    const cancelBtn = overlay.querySelector("#_confirm-cancel");
+    okBtn.onclick = () => cleanup(true);
+    cancelBtn.onclick = () => cleanup(false);
     overlay.addEventListener("keydown", (e) => {
       if (e.key === "Escape") cleanup(false);
       if (e.key === "Enter") cleanup(true);
+      // Focus trap: keep Tab cycling between the two buttons
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const target = document.activeElement === okBtn ? cancelBtn : okBtn;
+        target.focus();
+      }
     });
-    overlay.querySelector("#_confirm-ok").focus();
+    okBtn.focus();
   });
 }
