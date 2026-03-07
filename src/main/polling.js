@@ -25,7 +25,10 @@ function randomInterval(search, settings) {
   const globalMax = (settings.maxInterval || 120) * 1000;
   const min = search && search.minInterval ? search.minInterval * 1000 : globalMin;
   const max = search && search.maxInterval ? search.maxInterval * 1000 : globalMax;
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  // Hard floor: never poll faster than every 30 seconds, even with corrupted settings.
+  const safeMin = Math.max(min, 30_000);
+  const safeMax = Math.max(max, safeMin);
+  return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
 }
 
 /**
