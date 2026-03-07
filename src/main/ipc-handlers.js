@@ -5,7 +5,7 @@ const fs = require("fs");
 const ebay = require("./ebay/ebay");
 const vinted = require("./vinted/vinted");
 const { configureRequesterProxy } = require("./vinted/lib/requester");
-const { saveSearches, saveSettings, loadFavourites, saveFavourites } = require("./persistence");
+const { saveSearches, saveSettings, saveFavourites } = require("./persistence");
 const { scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = require("./polling");
 const { sendNotifications } = require("./notifications");
 
@@ -226,29 +226,30 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   // ─── Favourites ─────────────────────────────────────────────────────────────
   // favourites.json stores a snapshot of each favourited item. Load once on
   // startup (via get-favourites) and persist on every change.
-  ipcMain.handle("get-favourites", () => loadFavourites());
+  ipcMain.handle("get-favourites", () => state.favourites);
 
   ipcMain.handle("save-favourite", (_event, item) => {
-    const favourites = loadFavourites();
-    const idx = favourites.findIndex((f) => f.id === item.id);
+    const idx = state.favourites.findIndex((f) => f.id === item.id);
     if (idx !== -1) {
-      favourites[idx] = item; // Update existing snapshot
+      state.favourites[idx] = item; // Update existing snapshot
     } else {
-      favourites.unshift(item); // Prepend so newest favourites appear first
+      state.favourites.unshift(item); // Prepend so newest favourites appear first
     }
-    saveFavourites(favourites);
-    return favourites;
+    saveFavourites(state.favourites);
+    return state.favourites;
   });
 
   ipcMain.handle("remove-favourite", (_event, itemId) => {
-    const favourites = loadFavourites().filter((f) => f.id !== itemId);
-    saveFavourites(favourites);
-    return favourites;
+    const idx = state.favourites.findIndex((f) => f.id === itemId);
+    if (idx !== -1) state.favourites.splice(idx, 1);
+    saveFavourites(state.favourites);
+    return state.favourites;
   });
 
   ipcMain.handle("clear-favourites", () => {
-    saveFavourites([]);
-    return [];
+    state.favourites.splice(0);
+    saveFavourites(state.favourites);
+    return state.favourites;
   });
 
   // ─── Sound ───────────────────────────────────────────────────────────

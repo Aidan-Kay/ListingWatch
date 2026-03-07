@@ -43,7 +43,7 @@ app.on("second-instance", () => {
 });
 
 const ebay = require("./ebay/ebay");
-const { loadSearches, loadSettings, loadWindowState, saveWindowState, userDataPath } = require("./persistence");
+const { loadSearches, loadSettings, loadFavourites, loadWindowState, saveWindowState, userDataPath } = require("./persistence");
 const { setupIpc, makeCallbacks } = require("./ipc-handlers");
 const { startAllSearches, stopAllSearches } = require("./polling");
 const { configureRequesterProxy } = require("./vinted/lib/requester");
@@ -54,6 +54,7 @@ const { configureRequesterProxy } = require("./vinted/lib/requester");
 const state = {
   searches: [], // Array of search config objects
   feed: [], // Array of listing items  { id, searchId, … }
+  favourites: [], // Array of favourited listing snapshots (persisted to favourites.json)
   seenIds: {}, // Record<searchId, Set<itemId>> — per-search dedup sets (avoids O(n) prefix scan on delete)
   initialised: {}, // searchId → bool (has first fetch occurred)
   timers: {}, // searchId → setTimeout handle
@@ -204,6 +205,7 @@ function createTray() {
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   state.searches = loadSearches();
+  state.favourites = loadFavourites();
   settings = loadSettings();
 
   // Apply persisted proxy settings before any network activity.
