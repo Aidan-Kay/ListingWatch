@@ -380,7 +380,8 @@ function updateFeedBadge() {
 }
 
 async function clearFeed() {
-  feedItems = await window.api.clearFeed();
+  const result = await window.api.clearFeed();
+  feedItems.splice(0, feedItems.length, ...result);
   newCount = 0;
   updateFeedBadge();
   renderFeed();

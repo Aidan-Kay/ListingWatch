@@ -200,7 +200,8 @@ async function deleteSearch(id) {
   // our own filter. The main process correctly handles multi-search items
   // (trimming the deleted search ID instead of removing them outright), and
   // duplicating that logic in the renderer would create a divergence risk.
-  feedItems = await window.api.getFeed();
+  const updatedFeed = await window.api.getFeed();
+  feedItems.splice(0, feedItems.length, ...updatedFeed);
   renderSearches();
   renderFeed();
   showToast("Search deleted", "info");
