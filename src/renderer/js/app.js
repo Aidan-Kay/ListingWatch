@@ -254,12 +254,19 @@ function showOfflineBanner(visible) {
     });
   });
 
+  let _notifAudio = null;
+  let _notifAudioSrc = null;
+
   window.api.onPlayNotificationSound(({ soundFile, volume }) => {
     try {
       const normalized = soundFile.startsWith("file://") ? soundFile : `file:///${soundFile.replace(/\\/g, "/")}`;
-      const audio = new Audio(normalized);
-      audio.volume = Math.max(0, Math.min(1, volume ?? 1.0));
-      audio.play().catch((e) => console.warn("[sound] Playback failed:", e.message));
+      if (!_notifAudio || _notifAudioSrc !== normalized) {
+        _notifAudio = new Audio(normalized);
+        _notifAudioSrc = normalized;
+      }
+      _notifAudio.volume = Math.max(0, Math.min(1, volume ?? 1.0));
+      _notifAudio.currentTime = 0;
+      _notifAudio.play().catch((e) => console.warn("[sound] Playback failed:", e.message));
     } catch (e) {
       console.warn("[sound] Audio error:", e.message);
     }
