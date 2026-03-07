@@ -30,10 +30,19 @@ function randomInterval(search, settings) {
 
 /**
  * Prepend items to the feed, capping at FEED_MAX_SIZE.
+ * Maintains feedIndex for O(1) cross-search dedup lookups.
  */
 function pushToFeed(state, items) {
+  for (const item of items) {
+    state.feedIndex.set(`${item.source}:${item.itemId}`, item);
+  }
   state.feed.unshift(...items);
-  if (state.feed.length > FEED_MAX_SIZE) state.feed.splice(FEED_MAX_SIZE);
+  if (state.feed.length > FEED_MAX_SIZE) {
+    const removed = state.feed.splice(FEED_MAX_SIZE);
+    for (const item of removed) {
+      state.feedIndex.delete(`${item.source}:${item.itemId}`);
+    }
+  }
 }
 
 /**
@@ -123,7 +132,7 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       const trulyNew = [];
       for (const item of newItems) {
         const canonical = `${item.source}:${item.itemId}`;
-        const existing = state.feed.find((f) => `${f.source}:${f.itemId}` === canonical);
+        const existing = state.feedIndex.get(canonical);
         if (existing) {
           if (!Array.isArray(existing.searchIds)) existing.searchIds = [existing.searchId];
           if (!existing.searchIds.includes(item.searchId)) {

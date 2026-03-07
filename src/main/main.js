@@ -54,6 +54,7 @@ const { configureRequesterProxy } = require("./vinted/lib/requester");
 const state = {
   searches: [], // Array of search config objects
   feed: [], // Array of listing items  { id, searchId, … }
+  feedIndex: new Map(), // Map<"source:itemId", feedItem> — O(1) cross-search dedup index
   favourites: [], // Array of favourited listing snapshots (persisted to favourites.json)
   seenIds: {}, // Record<searchId, Set<itemId>> — per-search dedup sets (avoids O(n) prefix scan on delete)
   initialised: {}, // searchId → bool (has first fetch occurred)

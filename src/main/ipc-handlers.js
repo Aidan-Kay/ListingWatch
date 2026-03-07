@@ -116,6 +116,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       const ids = Array.isArray(item.searchIds) ? item.searchIds : [item.searchId];
       if (ids.includes(id)) {
         if (ids.length <= 1) {
+          state.feedIndex.delete(`${item.source}:${item.itemId}`);
           state.feed.splice(i, 1);
         } else {
           item.searchIds = ids.filter((s) => s !== id);
@@ -217,6 +218,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
 
   ipcMain.handle("clear-feed", () => {
     state.feed.splice(0); // In-place clear to preserve shared reference
+    state.feedIndex.clear();
     updateTaskbarBadge(0, null, getWindow());
     const t = getTray && getTray();
     if (t && !t.isDestroyed()) t.setToolTip("ListingWatch");
