@@ -1,3 +1,5 @@
+# WORK IN PROGRESS
+
 # ListingWatch
 
 A desktop application for monitoring eBay and Vinted listings in real time. ListingWatch polls the eBay Browse API and the Vinted catalogue API on configurable intervals and aggregates new listings into one feed.
