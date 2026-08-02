@@ -16,6 +16,18 @@ const PAGE_META = {
       </button>
     `,
   },
+  lists: {
+    title: "Match Lists",
+    subtitle: "Reusable term lists that searches filter their results against",
+    actions: () => `
+      <button onclick="newKeywordList()" class="btn-ghost text-xs flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+        </svg>
+        New List
+      </button>
+    `,
+  },
   searches: {
     title: "Searches",
     subtitle: "Configure your searches to monitor",
@@ -72,6 +84,10 @@ function showPage(page) {
 
   if (page === "favourites") {
     renderFavourites();
+  }
+
+  if (page === "lists") {
+    renderKeywordListsPage();
   }
 
   if (page === "settings") {
@@ -201,9 +217,11 @@ function showOfflineBanner(visible) {
   feedItems = await window.api.getFeed();
   settings = await window.api.getSettings();
   favourites = await window.api.getFavourites();
+  keywordLists = await window.api.getKeywordLists();
 
   applySettings();
   initSettingsListeners();
+  updateListsCountBadge();
   renderSearches();
   renderFeed();
   updateStatus();

@@ -99,6 +99,11 @@ function renderFeedCard(item, index, zoom) {
             </div>
           </div>
           ${item.condition ? `<p class="${zoom.meta} text-neutral-400 truncate">${escapeHtml(item.condition)}</p>` : ""}
+          ${
+            Array.isArray(item.matchedTerms) && item.matchedTerms.length > 0
+              ? `<p class="${zoom.meta} text-accent-500 truncate" title="Matched: ${escapeAttr(item.matchedTerms.join(", "))}">${escapeHtml(item.matchedTerms.join(", "))}</p>`
+              : ""
+          }
         </div>
         <div class="flex flex-col gap-0.5 mt-auto pt-1">
           <div class="flex items-center gap-2">

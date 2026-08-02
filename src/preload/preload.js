@@ -8,6 +8,12 @@ contextBridge.exposeInMainWorld("api", {
   toggleSearch: (id, enabled) => ipcRenderer.invoke("toggle-search", id, enabled),
   toggleNotify: (id, notify) => ipcRenderer.invoke("toggle-notify", id, notify),
 
+  // Keyword lists
+  getKeywordLists: () => ipcRenderer.invoke("get-keyword-lists"),
+  saveKeywordList: (list) => ipcRenderer.invoke("save-keyword-list", list),
+  deleteKeywordList: (id) => ipcRenderer.invoke("delete-keyword-list", id),
+  importKeywordListFile: () => ipcRenderer.invoke("import-keyword-list-file"),
+
   // Settings
   getSettings: () => ipcRenderer.invoke("get-settings"),
   saveSettings: (settings) => ipcRenderer.invoke("save-settings", settings),

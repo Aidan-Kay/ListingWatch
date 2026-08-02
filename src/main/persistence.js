@@ -4,7 +4,6 @@ const fs = require("fs");
 const path = require("path");
 const { app, safeStorage } = require("electron");
 const { queueWrite, flushAllPendingWrites } = require("./shared/write-queue");
-
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const userDataPath = app.getPath("userData");
 const searchesFile = path.join(userDataPath, "searches.json");
@@ -12,6 +11,7 @@ const settingsFile = path.join(userDataPath, "settings.json");
 const windowStateFile = path.join(userDataPath, "window-state.json");
 const favouritesFile = path.join(userDataPath, "favourites.json");
 const apiUsageFile = path.join(userDataPath, "api-usage.json");
+const keywordListsFile = path.join(userDataPath, "keyword-lists.json");
 
 // ─── Searches ─────────────────────────────────────────────────────────────────
 function loadSearches() {
@@ -37,6 +37,25 @@ function saveSearches(searches) {
     return copy;
   });
   return queueWrite(searchesFile, sanitised);
+}
+
+// ─── Keyword Lists ────────────────────────────────────────────────────────────
+// Reusable named term lists ({ id, name, terms[], version, updatedAt }) that
+// searches reference by id via `search.includeLists`.
+function loadKeywordLists() {
+  try {
+    if (fs.existsSync(keywordListsFile)) {
+      const parsed = JSON.parse(fs.readFileSync(keywordListsFile, "utf8"));
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (e) {
+    console.error("Failed to load keyword lists:", e);
+  }
+  return [];
+}
+
+function saveKeywordLists(lists) {
+  return queueWrite(keywordListsFile, lists);
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -197,6 +216,8 @@ module.exports = {
   DEFAULT_SETTINGS,
   loadSearches,
   saveSearches,
+  loadKeywordLists,
+  saveKeywordLists,
   loadSettings,
   saveSettings,
   loadWindowState,

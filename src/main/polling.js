@@ -3,6 +3,7 @@
 const { getAdapter } = require("./shared/marketplace-adapters");
 const { isNoInternetError } = require("./shared/retry");
 const { SEEN_IDS_MAX_SIZE } = require("./shared/constants");
+const { compileLists, countTerms, matchTitle } = require("./shared/keyword-match");
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const FEED_MAX_SIZE = 500;
@@ -49,6 +50,52 @@ function pushToFeed(state, items) {
 }
 
 /**
+ * Split items against the feed: those already present have their `searchIds`
+ * extended in place (cross-search duplicate merge), and the rest are returned
+ * as genuinely new. Both the init and steady-state paths use this so a search
+ * whose seen-IDs were reset cannot re-add cards already on screen.
+ *
+ * @returns {Object[]} items not already in the feed
+ */
+function dedupeAgainstFeed(state, items, search) {
+  const trulyNew = [];
+  for (const item of items) {
+    const canonical = `${item.source}:${item.itemId}`;
+    const existing = state.feedIndex.get(canonical);
+    if (existing) {
+      if (!Array.isArray(existing.searchIds)) existing.searchIds = [existing.searchId];
+      if (!existing.searchIds.includes(item.searchId)) {
+        existing.searchIds.push(item.searchId);
+        console.log(`[${search.source}] [${search.name}] Cross-search duplicate merged: ${item.itemId}`);
+      }
+    } else {
+      trulyNew.push(item);
+    }
+  }
+  return trulyNew;
+}
+
+/**
+ * Apply the search's keyword include-lists, tagging each surviving item with
+ * the terms it matched. A search with no lists — or whose lists resolve to no
+ * usable terms — is passed through unfiltered rather than matching nothing.
+ */
+function applyIncludeLists(items, search, state) {
+  const compiled = compileLists(search.includeLists, state.keywordLists);
+  if (countTerms(compiled) === 0) return items;
+
+  const kept = [];
+  for (const item of items) {
+    const matched = matchTitle(item.title, compiled);
+    if (matched.length > 0) {
+      item.matchedTerms = matched;
+      kept.push(item);
+    }
+  }
+  return kept;
+}
+
+/**
  * Fetch new listings for a single search and update shared state.
  *
  * @param {Object}   search
@@ -75,32 +122,35 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       return;
     }
 
-    // Client-side exclude-keyword filtering: drop any item whose title
-    // contains one of the user's excluded words/phrases.
+    // Client-side filtering, applied in order:
+    //   1. include-lists — keep only titles matching an attached keyword list
+    //      (used by keyword-less category searches that pull a whole feed)
+    //   2. exclude-keywords — drop titles containing an excluded word/phrase
+    const includedItems = applyIncludeLists(items, search, state);
+
     const excludeKeywords = Array.isArray(search.excludeKeywords) ? search.excludeKeywords : [];
     const filteredItems =
       excludeKeywords.length > 0
-        ? items.filter((item) => {
+        ? includedItems.filter((item) => {
             const title = (item.title || "").toLowerCase();
             return !excludeKeywords.some((kw) => title.includes(kw));
           })
-        : items;
+        : includedItems;
 
     const isInit = !state.initialised[search.id];
     // Per-search seen-ID set: O(1) lookup/add, O(1) delete when search is removed.
     const searchSeenIds = (state.seenIds[search.id] ??= new Set());
 
-    // Collect IDs of all raw items (including excluded) so we can mark them
-    // as seen without re-announcing them if exclude keywords are later changed.
+    // Collect IDs of all raw items (including filtered-out ones) so we can mark
+    // them as seen without re-announcing them if the filters are later changed.
     const previouslySeen = new Set(searchSeenIds);
 
-    // Mark every returned item as seen (excluded or not).
+    // Mark every returned item as seen (filtered out or not).
     for (const item of items) {
       searchSeenIds.add(item.itemId);
     }
 
-    // Only items that passed the exclude filter AND weren't previously seen
-    // are truly new.
+    // Only items that passed the filters AND weren't previously seen are new.
     const newItems = filteredItems.filter((item) => !previouslySeen.has(item.itemId));
     // Initialise searchIds on all new items
     for (const item of newItems) {
@@ -118,6 +168,10 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
     // Reset consecutive-error counter on any successful fetch.
     if (search._errorCount) search._errorCount = 0;
 
+    // Filtering summary for the logs — the main signal for whether an
+    // include-list is doing what the user expects.
+    const filterNote = filteredItems.length !== items.length ? `, ${filteredItems.length} matched` : "";
+
     if (isInit) {
       state.initialised[search.id] = true;
       const showHours = settings.showListingsFromHours || 0;
@@ -128,38 +182,22 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
           const ts = item.listingDate || item.foundAt;
           return ts && new Date(ts).getTime() >= cutoff;
         });
+        initialItems = dedupeAgainstFeed(state, initialItems, search);
       }
       if (initialItems.length > 0) {
         pushToFeed(state, initialItems);
         onNewItems(initialItems, true);
-        const excludedCount = items.length - filteredItems.length;
-        const excludedNote = excludedCount > 0 ? `, ${excludedCount} excluded` : "";
         console.log(
-          `[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen${excludedNote}, ${initialItems.length} from last ${showHours}h added to feed`,
+          `[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen${filterNote}, ${initialItems.length} from last ${showHours}h added to feed`,
         );
       } else {
-        const excludedCount = items.length - filteredItems.length;
-        const excludedNote = excludedCount > 0 ? `, ${excludedCount} excluded` : "";
-        console.log(`[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen${excludedNote}, none added to feed`);
+        console.log(`[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen${filterNote}, none added to feed`);
       }
       onStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
     } else if (newItems.length > 0) {
       // Cross-search duplicate detection: items already in the feed from a different
       // search are merged (their searchIds extended) rather than re-announced.
-      const trulyNew = [];
-      for (const item of newItems) {
-        const canonical = `${item.source}:${item.itemId}`;
-        const existing = state.feedIndex.get(canonical);
-        if (existing) {
-          if (!Array.isArray(existing.searchIds)) existing.searchIds = [existing.searchId];
-          if (!existing.searchIds.includes(item.searchId)) {
-            existing.searchIds.push(item.searchId);
-            console.log(`[${search.source}] [${search.name}] Cross-search duplicate merged: ${item.itemId}`);
-          }
-        } else {
-          trulyNew.push(item);
-        }
-      }
+      const trulyNew = dedupeAgainstFeed(state, newItems, search);
       if (trulyNew.length > 0) {
         console.log(`[${search.source}] [${search.name}] Found ${trulyNew.length} new listing(s)`);
         pushToFeed(state, trulyNew);

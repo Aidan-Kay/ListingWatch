@@ -2,13 +2,60 @@
 
 const { ipcMain, shell, dialog, nativeImage, session } = require("electron");
 const fs = require("fs");
+const path = require("path");
 const ebay = require("./ebay/ebay");
 const { configureRequesterProxy } = require("./vinted/lib/requester");
-const { saveSearches, saveSettings, saveFavourites } = require("./persistence");
+const { saveSearches, saveSettings, saveFavourites, saveKeywordLists } = require("./persistence");
 const { scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = require("./polling");
 const { sendNotifications } = require("./notifications");
 const { MARKETPLACE_SOURCES } = require("./shared/constants");
 const { getAdapter } = require("./shared/marketplace-adapters");
+const { invalidateCompiled } = require("./shared/keyword-match");
+
+// Cap on a single imported term file, to keep a mis-selected file from being
+// slurped into memory and written back out to keyword-lists.json.
+const KEYWORD_FILE_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Clean a raw term array: trim, drop blanks, and collapse case-insensitive
+ * duplicates while keeping the first spelling the user typed.
+ */
+function cleanTerms(terms) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of terms) {
+    const term = String(raw ?? "").trim();
+    if (!term) continue;
+    const key = term.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(term);
+  }
+  return out;
+}
+
+/**
+ * Send a search back to its first-fetch state. The next poll re-reads the whole
+ * page through the init path, which respects `showListingsFromHours` and passes
+ * isInit so no notifications fire. Used whenever a filter changes, since items
+ * already marked seen may now qualify — clearing seenIds alone would make the
+ * steady-state path treat the entire page as new and spam notifications.
+ */
+function resetSearchSeenState(state, searchId) {
+  delete state.seenIds[searchId];
+  delete state.initialised[searchId];
+}
+
+/**
+ * Reset every search that references a given keyword list.
+ */
+function resetSearchesUsingList(state, listId) {
+  for (const s of state.searches) {
+    if (Array.isArray(s.includeLists) && s.includeLists.includes(listId)) {
+      resetSearchSeenState(state, s.id);
+    }
+  }
+}
 
 /**
  * Set the tray tooltip to reflect the current feed size, or a custom message.
@@ -108,14 +155,21 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       const parsed = Number(search.maxNotifyPrice);
       search.maxNotifyPrice = Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
     }
+    search.includeLists = Array.isArray(search.includeLists) ? search.includeLists.filter((id) => typeof id === "string") : [];
 
     const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
 
     if (search.id) {
       const idx = state.searches.findIndex((s) => s.id === search.id);
       if (idx !== -1) {
+        // Attaching or detaching a list changes what qualifies, so items already
+        // marked seen have to be reconsidered.
+        const prevLists = Array.isArray(state.searches[idx].includeLists) ? state.searches[idx].includeLists : [];
+        const listsChanged = prevLists.join(",") !== search.includeLists.join(",");
+
         state.searches[idx] = { ...state.searches[idx], ...search };
         stopSearch(search.id, state);
+        if (listsChanged) resetSearchSeenState(state, search.id);
         if (search.enabled) {
           scheduleSearch(state.searches[idx], state, onNewItems, onStatus, getSettings);
         }
@@ -189,6 +243,91 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     search.notify = notify;
     saveSearches(state.searches);
     return state.searches;
+  });
+
+  // ─── Keyword Lists ──────────────────────────────────────────────────────────
+  // Reusable named term lists. Searches reference them by id through
+  // `search.includeLists`; polling.js keeps only titles matching a term.
+  ipcMain.handle("get-keyword-lists", () => state.keywordLists);
+
+  ipcMain.handle("save-keyword-list", (_event, list) => {
+    if (!list || typeof list !== "object") {
+      throw new Error("save-keyword-list: invalid payload");
+    }
+    const name = String(list.name || "").trim();
+    if (!name) throw new Error("save-keyword-list: name is required");
+    const terms = cleanTerms(Array.isArray(list.terms) ? list.terms : []);
+
+    const existing = list.id ? state.keywordLists.find((l) => l.id === list.id) : null;
+    if (existing) {
+      // Only bump the version when the terms actually change — the version is
+      // both the compiled-form cache key and the trigger for re-scanning.
+      const termsChanged = existing.terms.length !== terms.length || existing.terms.some((t, i) => t !== terms[i]);
+      existing.name = name;
+      existing.terms = terms;
+      existing.updatedAt = new Date().toISOString();
+      if (termsChanged) {
+        existing.version = (existing.version || 0) + 1;
+        resetSearchesUsingList(state, existing.id);
+      }
+    } else {
+      state.keywordLists.push({
+        id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        terms,
+        version: 1,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    saveKeywordLists(state.keywordLists);
+    return state.keywordLists;
+  });
+
+  ipcMain.handle("delete-keyword-list", (_event, id) => {
+    const idx = state.keywordLists.findIndex((l) => l.id === id);
+    if (idx === -1) return state.keywordLists;
+
+    state.keywordLists.splice(idx, 1);
+    invalidateCompiled(id);
+
+    // Detach from any search using it. Those searches become less filtered, so
+    // reset them too or newly-qualifying listings would stay invisible.
+    let searchesChanged = false;
+    for (const s of state.searches) {
+      if (Array.isArray(s.includeLists) && s.includeLists.includes(id)) {
+        s.includeLists = s.includeLists.filter((listId) => listId !== id);
+        resetSearchSeenState(state, s.id);
+        searchesChanged = true;
+      }
+    }
+    if (searchesChanged) saveSearches(state.searches);
+
+    saveKeywordLists(state.keywordLists);
+    return state.keywordLists;
+  });
+
+  // Read terms out of a plain-text/CSV file so the user can review them in the
+  // editor before saving — deliberately does not create the list itself.
+  ipcMain.handle("import-keyword-list-file", async () => {
+    const win = getWindow();
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: "Import Terms",
+      filters: [{ name: "Text", extensions: ["txt", "csv"] }],
+      properties: ["openFile"],
+    });
+    if (canceled || !filePaths.length) return { ok: false, canceled: true };
+    try {
+      const { size } = fs.statSync(filePaths[0]);
+      if (size > KEYWORD_FILE_MAX_BYTES) {
+        throw new Error(`File is too large (${Math.round(size / 1024 / 1024)} MB). Limit is 5 MB.`);
+      }
+      const raw = fs.readFileSync(filePaths[0], "utf8");
+      const terms = cleanTerms(raw.split(/[\r\n,]+/));
+      return { ok: true, terms, name: path.basename(filePaths[0]).replace(/\.[^.]+$/, "") };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 
   // ─── Pause / Resume All ────────────────────────────────────────────────────
@@ -380,7 +519,13 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       // Strip credentials from backup — they should not leave the machine
       delete exportSettings.clientId;
       delete exportSettings.clientSecret;
-      const data = { version: 1, exportedAt: new Date().toISOString(), searches: state.searches, settings: exportSettings };
+      const data = {
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        searches: state.searches,
+        keywordLists: state.keywordLists,
+        settings: exportSettings,
+      };
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
       return { ok: true, filePath };
     } catch (err) {
@@ -402,6 +547,11 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       if (!Array.isArray(data.searches) || typeof data.settings !== "object" || data.settings === null) {
         throw new Error("Invalid backup file: 'searches' must be an array and 'settings' must be an object.");
       }
+      // v1 backups predate keyword lists — absent means "leave existing lists
+      // alone", which keeps any lists the user already has referenced.
+      if (data.keywordLists !== undefined && !Array.isArray(data.keywordLists)) {
+        throw new Error("Invalid backup file: 'keywordLists' must be an array.");
+      }
       for (const s of data.searches) {
         if (!s.id || !s.name || !s.source) {
           throw new Error("Invalid backup file: a search entry is missing required fields (id, name, source).");
@@ -415,6 +565,11 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
 
       // Mutate in-place so existing closures in polling.js retain the same array reference.
       state.searches.splice(0, state.searches.length, ...data.searches);
+      if (Array.isArray(data.keywordLists)) {
+        for (const l of state.keywordLists) invalidateCompiled(l.id);
+        state.keywordLists.splice(0, state.keywordLists.length, ...data.keywordLists);
+        saveKeywordLists(state.keywordLists);
+      }
       // Clear per-search runtime state for a clean slate after import.
       state.seenIds = {};
       state.initialised = {};

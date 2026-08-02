@@ -45,6 +45,7 @@ app.on("second-instance", () => {
 const ebay = require("./ebay/ebay");
 const {
   loadSearches,
+  loadKeywordLists,
   loadSettings,
   loadFavourites,
   loadWindowState,
@@ -62,6 +63,7 @@ const { configureRequesterProxy } = require("./vinted/lib/requester");
 // object so both polling.js and ipc-handlers.js see the same reference.
 const state = {
   searches: [], // Array of search config objects
+  keywordLists: [], // Reusable term lists referenced by search.includeLists
   feed: [], // Array of listing items  { id, searchId, … }
   feedIndex: new Map(), // Map<"source:itemId", feedItem> — O(1) cross-search dedup index
   favourites: [], // Array of favourited listing snapshots (persisted to favourites.json)
@@ -215,6 +217,7 @@ function createTray() {
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   state.searches = loadSearches();
+  state.keywordLists = loadKeywordLists();
   state.favourites = loadFavourites();
   settings = loadSettings();
 

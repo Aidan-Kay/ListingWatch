@@ -33,6 +33,8 @@ function resetSearchForm() {
   document.getElementById("modal-vinted-category").value = "";
   document.getElementById("modal-keywords").value = "";
   document.getElementById("modal-exclude-keywords").value = "";
+  searchModalIncludeLists = [];
+  renderIncludeListOptions();
   document.getElementById("modal-category").value = "";
   document.getElementById("modal-category-l1").innerHTML = '<option value="">— Browse top-level categories —</option>';
   document.getElementById("modal-category-l2").innerHTML = '<option value="">All sub-categories</option>';
@@ -69,6 +71,8 @@ function populateSearchForm(search) {
   document.getElementById("modal-exclude-keywords").value = Array.isArray(search.excludeKeywords)
     ? search.excludeKeywords.join(", ")
     : search.excludeKeywords || "";
+  searchModalIncludeLists = Array.isArray(search.includeLists) ? [...search.includeLists] : [];
+  renderIncludeListOptions();
   document.getElementById("modal-category").value = search.category || "";
   document.getElementById("modal-min-price").value = search.minPrice || "";
   document.getElementById("modal-max-price").value = search.maxPrice || "";
@@ -232,10 +236,16 @@ function collectSearchFormData() {
     : [];
   const vintedCategory = isVinted ? document.getElementById("modal-vinted-category").value || null : null;
   const category = isVinted ? "" : document.getElementById("modal-category").value.trim();
-  if (!keywords && !category) {
-    showToast(isVinted ? "Please enter keywords" : "Please enter keywords or select a category", "error");
+  // A Vinted search can be keyword-less: the category returns the whole feed and
+  // an attached match list does the filtering client-side.
+  const hasScope = isVinted ? keywords || vintedCategory : keywords || category;
+  if (!hasScope) {
+    showToast(isVinted ? "Please enter keywords or a category ID" : "Please enter keywords or select a category", "error");
     document.getElementById("modal-keywords").focus();
     return null;
+  }
+  if (isVinted && !keywords && searchModalIncludeLists.length === 0) {
+    showToast("Category-only searches return the whole category — attach a match list to filter them", "warning");
   }
 
   const site = isVinted ? document.getElementById("modal-vinted-site").value : document.getElementById("modal-site").value;
@@ -247,6 +257,7 @@ function collectSearchFormData() {
     site,
     keywords,
     excludeKeywords,
+    includeLists: [...searchModalIncludeLists],
     category: isVinted ? null : category,
     vintedCategory: isVinted ? vintedCategory : null,
     minPrice: document.getElementById("modal-min-price").value || null,

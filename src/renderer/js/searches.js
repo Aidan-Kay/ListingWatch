@@ -1,4 +1,15 @@
 // ─── Searches ─────────────────────────────────────────────────────────────────
+
+/**
+ * " · Matches: PS2 Games" for searches with keyword lists attached. Ids with no
+ * surviving list are skipped, mirroring how polling treats a dangling reference.
+ */
+function attachedListLabel(search) {
+  if (!Array.isArray(search.includeLists) || search.includeLists.length === 0) return "";
+  const names = search.includeLists.map((id) => keywordLists.find((l) => l.id === id)).filter(Boolean).map((l) => l.name);
+  return names.length > 0 ? ` · <span class="text-accent-500">Matches: ${escapeHtml(names.join(", "))}</span>` : "";
+}
+
 function renderSearchCard(search) {
   const hasError = !!search.error;
   const lastFetched = search.lastFetched ? timeAgo(search.lastFetched) : "Never";
@@ -37,6 +48,7 @@ function renderSearchCard(search) {
           ${search.keywords ? escapeHtml(search.keywords) : '<span class="italic">No keywords</span>'}
           ${priceRange}
           ${search.format && search.format !== "all" ? ` · ${buyingFormatLabel(search.format)}` : ""}
+          ${attachedListLabel(search)}
         </p>
         <p class="text-xs mt-0.5 ${hasError ? "text-danger-500" : search.lastFetched ? "text-neutral-400" : "text-neutral-600"}" ${hasError ? `title="${escapeAttr(search.error)}"` : ""}>
           ${hasError ? `Error: ${escapeHtml(search.error.length > 80 ? search.error.slice(0, 80) + "\u2026" : search.error)}` : `Last checked: <span class="search-last-checked" data-date="${escapeAttr(search.lastFetched || "")}">${lastFetched}</span>`}

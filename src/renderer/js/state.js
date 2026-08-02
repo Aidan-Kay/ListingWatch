@@ -15,6 +15,11 @@ let favouritesFilters = { text: "", platform: "all", searchId: "all", buyingForm
 let searchModalEnabled = true;
 let searchModalCardColor = null;
 let searchModalNotify = true;
+let searchModalIncludeLists = []; // ids of keyword lists attached to the search
+
+// Keyword (match) list state
+let keywordLists = []; // array of { id, name, terms[], version, updatedAt }
+let editingKeywordListId = null; // id being edited in the manager, null = new/unsaved
 
 // Category tree state
 let currentCategoryTree = []; // flat array of { id, name, depth, parentId }
