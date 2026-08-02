@@ -9,7 +9,8 @@ const { loadApiUsage, saveApiUsage } = require("../persistence");
 
 // Use Electron's net.fetch (Chromium stack, respects session.setProxy) in the
 // main process. Falls back to global fetch if net is unavailable (tests/etc).
-const _fetch = (...args) => (net && net.fetch ? net.fetch(...args) : fetch(...args));
+// Resolved once at module load \u2014 the alternative was re-checking on every call.
+const _fetch = net && net.fetch ? net.fetch.bind(net) : fetch;
 
 const MARKETPLACE_IDS = {
   US: "EBAY_US",
