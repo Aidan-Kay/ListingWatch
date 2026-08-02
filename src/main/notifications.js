@@ -79,13 +79,21 @@ function sendNotifications(items, settings, searches, mainWindow) {
     notif.show();
   }
 
-  // If a custom sound file is configured, play it from the renderer (HTML5 Audio)
+  // If a custom sound file is configured, play it from the renderer (HTML5 Audio).
+  // Throttled to once per ~600ms so a burst of new-listing events doesn't restart
+  // the audio mid-clip (which sounds like stuttering).
   if (settings.notificationSoundEnabled && settings.notificationSoundFile && mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("play-notification-sound", {
-      soundFile: settings.notificationSoundFile,
-      volume: settings.notificationVolume ?? 1.0,
-    });
+    const now = Date.now();
+    if (now - _lastSoundAt >= 600) {
+      _lastSoundAt = now;
+      mainWindow.webContents.send("play-notification-sound", {
+        soundFile: settings.notificationSoundFile,
+        volume: settings.notificationVolume ?? 1.0,
+      });
+    }
   }
 }
+
+let _lastSoundAt = 0;
 
 module.exports = { sendNotifications };
