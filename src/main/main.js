@@ -296,7 +296,17 @@ app.on("activate", () => {
 
 // ─── Global Error Handlers ────────────────────────────────────────────────────
 process.on("uncaughtException", (err) => {
-  console.error("Uncaught exception:", err);
+  console.error("Uncaught exception:", err); // Surface to the user in dev so silent crashes are obvious. In production we
+  // still log to electron-log file. We deliberately do NOT auto-relaunch — a
+  // crash loop should fail loudly, not silently restart.
+  if (!app.isPackaged) {
+    const { dialog } = require("electron");
+    try {
+      dialog.showErrorBox("ListingWatch — Uncaught Exception", String(err.stack || err));
+    } catch {
+      // dialog can fail very early in startup
+    }
+  }
 });
 
 process.on("unhandledRejection", (reason) => {
