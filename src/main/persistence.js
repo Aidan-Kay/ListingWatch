@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { app, safeStorage } = require("electron");
+const { queueWrite, flushAllPendingWrites } = require("./shared/write-queue");
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const userDataPath = app.getPath("userData");
@@ -30,16 +31,12 @@ function loadSearches() {
 const SEARCH_RUNTIME_FIELDS = ["error", "_errorCount", "_pollTimer"];
 
 function saveSearches(searches) {
-  try {
-    const sanitised = searches.map((s) => {
-      const copy = { ...s };
-      SEARCH_RUNTIME_FIELDS.forEach((f) => delete copy[f]);
-      return copy;
-    });
-    fs.writeFileSync(searchesFile, JSON.stringify(sanitised, null, 2), "utf8");
-  } catch (e) {
-    console.error("Failed to save searches:", e);
-  }
+  const sanitised = searches.map((s) => {
+    const copy = { ...s };
+    SEARCH_RUNTIME_FIELDS.forEach((f) => delete copy[f]);
+    return copy;
+  });
+  return queueWrite(searchesFile, sanitised);
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -116,18 +113,14 @@ function loadSettings() {
 }
 
 function saveSettings(settings) {
-  try {
-    const toWrite = { ...settings };
-    if (safeStorage.isEncryptionAvailable()) {
-      for (const field of CREDENTIAL_FIELDS) {
-        if (toWrite[field]) toWrite[field] = encryptField(toWrite[field]);
-      }
-      toWrite._credentialsEncrypted = true;
+  const toWrite = { ...settings };
+  if (safeStorage.isEncryptionAvailable()) {
+    for (const field of CREDENTIAL_FIELDS) {
+      if (toWrite[field]) toWrite[field] = encryptField(toWrite[field]);
     }
-    fs.writeFileSync(settingsFile, JSON.stringify(toWrite, null, 2), "utf8");
-  } catch (e) {
-    console.error("Failed to save settings:", e);
+    toWrite._credentialsEncrypted = true;
   }
+  return queueWrite(settingsFile, toWrite);
 }
 
 // ─── Favourites ─────────────────────────────────────────────────────────────
@@ -143,11 +136,7 @@ function loadFavourites() {
 }
 
 function saveFavourites(items) {
-  try {
-    fs.writeFileSync(favouritesFile, JSON.stringify(items, null, 2), "utf8");
-  } catch (e) {
-    console.error("Failed to save favourites:", e);
-  }
+  return queueWrite(favouritesFile, items);
 }
 
 // ─── API Usage ────────────────────────────────────────────────────────────────
@@ -163,11 +152,7 @@ function loadApiUsage() {
 }
 
 function saveApiUsage(usage) {
-  try {
-    fs.writeFileSync(apiUsageFile, JSON.stringify(usage, null, 2), "utf8");
-  } catch (e) {
-    console.error("Failed to save API usage:", e);
-  }
+  return queueWrite(apiUsageFile, usage);
 }
 
 // ─── Window State ─────────────────────────────────────────────────────────────
@@ -182,16 +167,29 @@ function loadWindowState() {
 let _windowSaveTimer = null;
 function saveWindowState(win) {
   clearTimeout(_windowSaveTimer);
-  _windowSaveTimer = setTimeout(() => {
-    if (!win || win.isDestroyed() || win.isMinimized() || win.isMaximized()) return;
-    const [x, y] = win.getPosition();
-    const [width, height] = win.getSize();
-    try {
-      fs.writeFileSync(windowStateFile, JSON.stringify({ x, y, width, height }), "utf8");
-    } catch (e) {
-      console.warn("Failed to save window state:", e.message);
-    }
-  }, 500);
+  _windowSaveTimer = setTimeout(() => writeWindowState(win), 500);
+}
+
+/**
+ * Write window state immediately (used at quit time to flush any pending
+ * debounced save). Synchronous because it must complete before the process
+ * exits — the queueWrite path is fire-and-forget and would race app.exit().
+ */
+function flushWindowState(win) {
+  clearTimeout(_windowSaveTimer);
+  _windowSaveTimer = null;
+  writeWindowState(win);
+}
+
+function writeWindowState(win) {
+  if (!win || win.isDestroyed() || win.isMinimized() || win.isMaximized()) return;
+  const [x, y] = win.getPosition();
+  const [width, height] = win.getSize();
+  try {
+    fs.writeFileSync(windowStateFile, JSON.stringify({ x, y, width, height }), "utf8");
+  } catch (e) {
+    console.warn("Failed to save window state:", e.message);
+  }
 }
 
 module.exports = {
@@ -203,8 +201,10 @@ module.exports = {
   saveSettings,
   loadWindowState,
   saveWindowState,
+  flushWindowState,
   loadFavourites,
   saveFavourites,
   loadApiUsage,
   saveApiUsage,
+  flushAllPendingWrites,
 };

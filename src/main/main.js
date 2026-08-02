@@ -43,7 +43,16 @@ app.on("second-instance", () => {
 });
 
 const ebay = require("./ebay/ebay");
-const { loadSearches, loadSettings, loadFavourites, loadWindowState, saveWindowState, userDataPath } = require("./persistence");
+const {
+  loadSearches,
+  loadSettings,
+  loadFavourites,
+  loadWindowState,
+  saveWindowState,
+  flushWindowState,
+  flushAllPendingWrites,
+  userDataPath,
+} = require("./persistence");
 const { setupIpc, makeCallbacks } = require("./ipc-handlers");
 const { startAllSearches, stopAllSearches } = require("./polling");
 const { configureRequesterProxy } = require("./vinted/lib/requester");
@@ -252,12 +261,25 @@ powerMonitor.on("resume", () => {
   setTimeout(checkAndRestart, 2000);
 });
 
-app.on("before-quit", () => {
+let _quitFlushed = false;
+app.on("before-quit", (event) => {
   isQuitting = true;
+  // Flush pending debounced window-state write synchronously before exit.
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    flushWindowState(mainWindow);
+  }
   ebay.flushApiUsage();
   if (tray) {
     tray.destroy();
     tray = null;
+  }
+  // Wait for any in-flight async file writes (favourites/searches/settings/api-usage)
+  // to drain before the process exits. Without this, rapid changes immediately
+  // before quit can be lost.
+  if (!_quitFlushed) {
+    event.preventDefault();
+    _quitFlushed = true;
+    flushAllPendingWrites().finally(() => app.quit());
   }
 });
 
