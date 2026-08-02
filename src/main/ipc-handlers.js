@@ -11,6 +11,21 @@ const { MARKETPLACE_SOURCES } = require("./shared/constants");
 const { getAdapter } = require("./shared/marketplace-adapters");
 
 /**
+ * Set the tray tooltip to reflect the current feed size, or a custom message.
+ * Centralises the formatting that was previously inlined in 4+ call sites.
+ */
+function setTrayFeedTooltip(getTray, state, override) {
+  const t = getTray && getTray();
+  if (!t || t.isDestroyed()) return;
+  if (override) {
+    t.setToolTip(override);
+    return;
+  }
+  const n = state.feed.length;
+  t.setToolTip(`ListingWatch \u00b7 ${n} listing${n !== 1 ? "s" : ""} in feed`);
+}
+
+/**
  * Update a search's runtime status on the state object and push it to the renderer.
  * @param {string}  searchId
  * @param {Object}  statusPatch
@@ -52,11 +67,7 @@ function makeCallbacks(state, getSettings, getWindow, getTray) {
       sendNotifications(items, getSettings(), state.searches, win);
     }
     // Update tray tooltip with current feed size when new items arrive.
-    const t = getTray && getTray();
-    if (t && !t.isDestroyed()) {
-      const n = state.feed.length;
-      t.setToolTip(`ListingWatch \u00b7 ${n} listing${n !== 1 ? "s" : ""} in feed`);
-    }
+    setTrayFeedTooltip(getTray, state);
   }
 
   function onStatus(searchId, patch) {
@@ -183,18 +194,13 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   // ─── Pause / Resume All ────────────────────────────────────────────────────
   ipcMain.handle("pause-all", () => {
     stopAllSearches(state);
-    const t = getTray && getTray();
-    if (t && !t.isDestroyed()) t.setToolTip("ListingWatch \u00b7 Paused");
+    setTrayFeedTooltip(getTray, state, "ListingWatch \u00b7 Paused");
   });
 
   ipcMain.handle("resume-all", () => {
     const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
     startAllSearches(state, onNewItems, onStatus, getSettings);
-    const t = getTray && getTray();
-    if (t && !t.isDestroyed()) {
-      const n = state.feed.length;
-      t.setToolTip(`ListingWatch \u00b7 ${n} listing${n !== 1 ? "s" : ""} in feed`);
-    }
+    setTrayFeedTooltip(getTray, state);
   });
 
   // ─── Settings ───────────────────────────────────────────────────────────────
@@ -239,8 +245,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     state.feed.splice(0); // In-place clear to preserve shared reference
     state.feedIndex.clear();
     updateTaskbarBadge(0, null, getWindow());
-    const t = getTray && getTray();
-    if (t && !t.isDestroyed()) t.setToolTip("ListingWatch");
+    setTrayFeedTooltip(getTray, state, "ListingWatch");
     return state.feed;
   });
 
