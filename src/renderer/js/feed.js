@@ -29,6 +29,13 @@ const ZOOM_CONFIG = {
   large: { minCol: "480px", img: "w-32 h-32", title: "text-base", price: "text-lg", meta: "text-sm" },
 };
 
+// Set of favourite IDs, rebuilt at the start of each render so that
+// `renderFeedCard` is O(1) per item rather than O(favourites.length).
+let _favouriteIdSet = new Set();
+function _refreshFavouriteIdSet() {
+  _favouriteIdSet = new Set(favourites.map((f) => f.id));
+}
+
 function renderFeedCard(item, index, zoom) {
   const dateForAge = item.listingDate || item.foundAt;
   const isNew = Date.now() - new Date(item.foundAt).getTime() < NEW_ITEM_WINDOW_MS;
@@ -47,12 +54,12 @@ function renderFeedCard(item, index, zoom) {
     ? `border-color: ${hexToRgba(item.cardColor, 0.75)}; background-image: linear-gradient(135deg, ${hexToRgba(item.cardColor, 0.15)} 0%, ${hexToRgba(item.cardColor, 0.04)} 25%, transparent 40%);`
     : "";
   const endedStyle = isEnded ? "opacity: 0.5;" : "";
-  const isFavourited = favourites.some((f) => f.id === item.id);
+  const isFavourited = _favouriteIdSet.has(item.id);
 
   return `
     <div
       class="card p-3 flex gap-3 cursor-pointer hover:bg-neutral-700/50 animate-fade-in relative"
-      style="animation-delay: ${Math.min(index, 10) * 30}ms; ${cardColorStyle}${endedStyle}"
+      style="${cardColorStyle}${endedStyle}"
       data-item-id="${escapeAttr(item.id)}"
       data-end-date="${escapeAttr(item.listingEndDate || "")}"
       onclick="openListing('${escapeAttr(item.url)}')"
@@ -326,6 +333,7 @@ function renderFeed() {
   const zoom = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
   grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
 
+  _refreshFavouriteIdSet();
   grid.innerHTML = sorted.map((item, index) => renderFeedCard(item, index, zoom)).join("");
 }
 
@@ -345,7 +353,15 @@ function clearAllFilters() {
   renderFeed();
 }
 
+// Cache the badge image data URL by count. drawBadgeImage was previously called
+// from updateFeedBadge() on every feed-page navigation, regenerating an
+// identical canvas/data URL each time and shipping it across IPC.
+const _badgeImageCache = new Map();
 function drawBadgeImage(count) {
+  const key = count > 99 ? "99+" : String(count);
+  const cached = _badgeImageCache.get(key);
+  if (cached) return cached;
+
   const size = 16;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -357,14 +373,15 @@ function drawBadgeImage(count) {
   ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
   ctx.fill();
 
-  const label = count > 99 ? "99+" : String(count);
   ctx.fillStyle = "#ffffff";
-  ctx.font = `bold ${label.length > 1 ? 7 : 9}px sans-serif`;
+  ctx.font = `bold ${key.length > 1 ? 7 : 9}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(label, size / 2, size / 2 + 0.5);
+  ctx.fillText(key, size / 2, size / 2 + 0.5);
 
-  return canvas.toDataURL();
+  const dataUrl = canvas.toDataURL();
+  _badgeImageCache.set(key, dataUrl);
+  return dataUrl;
 }
 
 function updateFeedBadge() {
@@ -443,6 +460,7 @@ function prependFeedItems(newItems) {
   // Sort the new items by listing time (descending) before DOM insertion
   const sortedNew = [...visibleNewItems].sort((a, b) => itemListingTime(b) - itemListingTime(a));
 
+  _refreshFavouriteIdSet();
   const fragment = document.createDocumentFragment();
   sortedNew.forEach((item, i) => {
     const wrapper = document.createElement("div");
