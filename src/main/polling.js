@@ -1,7 +1,6 @@
 "use strict";
 
-const ebay = require("./ebay/ebay");
-const vinted = require("./vinted/vinted");
+const { getAdapter } = require("./shared/marketplace-adapters");
 const { SEEN_IDS_MAX_SIZE } = require("./shared/constants");
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -59,7 +58,8 @@ function pushToFeed(state, items) {
  */
 async function fetchSearch(search, state, onNewItems, onStatus, settings) {
   try {
-    const items = search.source === "vinted" ? await vinted.search(search) : await ebay.search(search);
+    const adapter = getAdapter(search.source);
+    const items = await adapter.search(search);
 
     // Client-side exclude-keyword filtering: drop any item whose title
     // contains one of the user's excluded words/phrases.

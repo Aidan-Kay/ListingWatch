@@ -3,11 +3,12 @@
 const { ipcMain, shell, dialog, nativeImage, session } = require("electron");
 const fs = require("fs");
 const ebay = require("./ebay/ebay");
-const vinted = require("./vinted/vinted");
 const { configureRequesterProxy } = require("./vinted/lib/requester");
 const { saveSearches, saveSettings, saveFavourites } = require("./persistence");
 const { scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = require("./polling");
 const { sendNotifications } = require("./notifications");
+const { MARKETPLACE_SOURCES } = require("./shared/constants");
+const { getAdapter } = require("./shared/marketplace-adapters");
 
 /**
  * Update a search's runtime status on the state object and push it to the renderer.
@@ -79,15 +80,18 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   ipcMain.handle("get-searches", () => state.searches);
 
   ipcMain.handle("save-search", (_event, search) => {
-    // ─── Defensive validation ───────────────────────────────────────────
+    // ─── Defensive validation ───────────────────────────────────────────────────
+    if (!search || typeof search !== "object") {
+      throw new Error("save-search: invalid search payload");
+    }
+    if (!MARKETPLACE_SOURCES.includes(search.source)) {
+      throw new Error(`save-search: unknown source "${search.source}". Expected one of: ${MARKETPLACE_SOURCES.join(", ")}`);
+    }
     if (search.minInterval != null) {
       search.minInterval = Math.max(30, Math.floor(Number(search.minInterval) || 30));
     }
     if (search.maxInterval != null) {
-      search.maxInterval = Math.max(
-        search.minInterval || 30,
-        Math.floor(Number(search.maxInterval) || 120),
-      );
+      search.maxInterval = Math.max(search.minInterval || 30, Math.floor(Number(search.maxInterval) || 120));
     }
     if (search.maxNotifyPrice != null) {
       const parsed = Number(search.maxNotifyPrice);
@@ -332,9 +336,11 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   });
 
   // ─── Item Images ────────────────────────────────────────────────────────────
+  // Both eBay and Vinted dispatch through the adapter registry. Adding a new
+  // marketplace requires no changes here — just register it in marketplace-adapters.js.
   ipcMain.handle("get-ebay-item-images", async (_event, itemId, site) => {
     try {
-      const images = await ebay.getItemImages(itemId, site);
+      const images = await getAdapter("ebay").getItemImages(itemId, site);
       return { ok: true, images };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -343,7 +349,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
 
   ipcMain.handle("get-vinted-item-images", async (_event, itemId, site) => {
     try {
-      const images = await vinted.getItemImages(itemId, site);
+      const images = await getAdapter("vinted").getItemImages(itemId, site);
       return { ok: true, images };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -394,6 +400,9 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       for (const s of data.searches) {
         if (!s.id || !s.name || !s.source) {
           throw new Error("Invalid backup file: a search entry is missing required fields (id, name, source).");
+        }
+        if (!MARKETPLACE_SOURCES.includes(s.source)) {
+          throw new Error(`Invalid backup file: search "${s.name}" has unknown source "${s.source}".`);
         }
       }
 

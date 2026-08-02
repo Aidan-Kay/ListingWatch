@@ -14,4 +14,8 @@ const CURRENCY_SYMBOLS = {
 // V8 Sets preserve insertion order, so the oldest entries are evicted first when pruning.
 const SEEN_IDS_MAX_SIZE = 10_000;
 
-module.exports = { CURRENCY_SYMBOLS, SEEN_IDS_MAX_SIZE };
+// Allowed values for `search.source`. Used by save-search / import-data validation
+// and by the marketplace adapter registry.
+const MARKETPLACE_SOURCES = Object.freeze(["ebay", "vinted"]);
+
+module.exports = { CURRENCY_SYMBOLS, SEEN_IDS_MAX_SIZE, MARKETPLACE_SOURCES };
