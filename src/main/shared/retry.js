@@ -38,9 +38,13 @@ async function withRetry(fn, options = {}) {
  * Handles fetch() errors and Electron-specific renderer errors.
  */
 function isTransientError(err) {
-  // Network errors (fetch: TypeError; axios: code === 'ECONNRESET' | 'ETIMEDOUT' etc.)
+  // fetch() network failures surface as TypeError with a network-y message.
+  // We deliberately do NOT treat *all* TypeErrors as transient — that hid bugs
+  // (e.g. parsing errors) behind silent retries.
+  if (err.name === "TypeError" && err.message && /fetch|network|failed to fetch/i.test(err.message)) {
+    return true;
+  }
   if (
-    err.name === "TypeError" ||
     err.code === "ECONNRESET" ||
     err.code === "ETIMEDOUT" ||
     err.code === "ECONNABORTED" ||
@@ -73,4 +77,26 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-module.exports = { withRetry, isTransientError };
+/**
+ * Errors that indicate the machine has no internet connectivity.
+ * Distinct from transient errors: these should NOT trigger exponential
+ * backoff — the app should retry at normal intervals so it recovers
+ * quickly when connectivity is restored.
+ */
+function isNoInternetError(err) {
+  if (
+    err.code === "ENOTFOUND" ||
+    err.code === "ENETUNREACH" ||
+    err.code === "EAI_AGAIN" ||
+    err.code === "ENETDOWN" ||
+    err.code === "EHOSTUNREACH"
+  ) {
+    return true;
+  }
+  if (err.name === "TypeError" && err.message && /fetch failed|network/i.test(err.message)) {
+    return true;
+  }
+  return false;
+}
+
+module.exports = { withRetry, isTransientError, isNoInternetError };

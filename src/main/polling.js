@@ -1,6 +1,7 @@
 "use strict";
 
 const { getAdapter } = require("./shared/marketplace-adapters");
+const { isNoInternetError } = require("./shared/retry");
 const { SEEN_IDS_MAX_SIZE } = require("./shared/constants");
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -248,29 +249,6 @@ function startAllSearches(state, onNewItems, onStatus, getSettings) {
       scheduleSearch(search, state, onNewItems, onStatus, getSettings);
     }
   }
-}
-
-/**
- * Determine whether an error indicates the machine has no internet connectivity.
- * These errors should not trigger exponential backoff — the app should retry at
- * normal intervals so it recovers quickly when connectivity is restored.
- */
-function isNoInternetError(err) {
-  if (
-    err.code === "ENOTFOUND" ||
-    err.code === "ENETUNREACH" ||
-    err.code === "EAI_AGAIN" ||
-    err.code === "ENETDOWN" ||
-    err.code === "EHOSTUNREACH"
-  ) {
-    return true;
-  }
-  // Generic fetch failures when truly offline often surface as TypeError
-  // with messages about network access.
-  if (err.name === "TypeError" && /fetch failed|network/i.test(err.message)) {
-    return true;
-  }
-  return false;
 }
 
 module.exports = {
