@@ -28,7 +28,7 @@ function loadSearches() {
 }
 
 // Runtime-only fields that should never be written to disk
-const SEARCH_RUNTIME_FIELDS = ["error", "_errorCount", "_pollTimer"];
+const SEARCH_RUNTIME_FIELDS = ["error", "_errorCount", "_generation"];
 
 function saveSearches(searches) {
   const sanitised = searches.map((s) => {

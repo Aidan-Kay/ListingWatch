@@ -58,9 +58,22 @@ function pushToFeed(state, items) {
  * @param {Object}   settings
  */
 async function fetchSearch(search, state, onNewItems, onStatus, settings) {
+  // Capture the generation that owns this fetch. If a save/delete supersedes
+  // the search before we resolve, we abort instead of writing stale state.
+  const fetchGen = search._generation || 0;
+  const isCurrent = () => {
+    const live = state.searches.find((s) => s.id === search.id);
+    return !!live && (live._generation || 0) === fetchGen;
+  };
+
   try {
     const adapter = getAdapter(search.source);
     const items = await adapter.search(search);
+
+    if (!isCurrent()) {
+      // Search was deleted or replaced while the network call was in flight.
+      return;
+    }
 
     // Client-side exclude-keyword filtering: drop any item whose title
     // contains one of the user's excluded words/phrases.
@@ -159,6 +172,7 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       onStatus(search.id, { lastFetched: new Date().toISOString(), error: null });
     }
   } catch (err) {
+    if (!isCurrent()) return;
     console.error(`[${search.source}] [${search.name}] Fetch error:`, err.message);
     // Only apply exponential backoff for non-connectivity errors.
     // No-internet errors (DNS failure, network unreachable) use normal intervals
@@ -184,6 +198,11 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
  */
 function scheduleSearch(search, state, onNewItems, onStatus, getSettings) {
   if (!search.enabled) return;
+
+  // Bump the generation token so any in-flight fetch from a superseded
+  // schedule (e.g. previous start before a config change) cannot mutate
+  // state when it eventually resolves.
+  search._generation = (search._generation || 0) + 1;
 
   fetchSearch(search, state, onNewItems, onStatus, getSettings()).then(() => {
     function scheduleNext() {
@@ -223,17 +242,26 @@ function stopSearch(searchId, state) {
     delete state.timers[searchId];
   }
   delete state.initialised[searchId];
+  // Bump generation so any in-flight fetch becomes a no-op when it resolves.
+  const search = state.searches.find((s) => s.id === searchId);
+  if (search) search._generation = (search._generation || 0) + 1;
 }
 
 /**
  * Stop all active pollers.
- * @param {Object} state - { timers }
+ * @param {Object} state - { timers, searches }
  */
 function stopAllSearches(state) {
   for (const id of Object.keys(state.timers)) {
     clearTimeout(state.timers[id]);
     delete state.timers[id];
   }
+  // Mirror stopSearch — bump generation on every search so in-flight fetches
+  // become no-ops. Also clear `initialised` so resume re-runs init logic.
+  for (const s of state.searches) {
+    s._generation = (s._generation || 0) + 1;
+  }
+  state.initialised = {};
 }
 
 /**
