@@ -12,8 +12,26 @@ const FEED_MAX_SIZE = 500;
  * @typedef {Object} PollState
  * @property {Map<string, ReturnType<typeof setTimeout>>} timers
  * @property {Set<string>} seenIds
+ * @property {Set<string>} deliveredIds
  * @property {Object<string, boolean>} initialised
  */
+
+/**
+ * Record item IDs as having reached the user (added to the feed, or merged onto
+ * a card already on screen from another search).
+ *
+ * Kept apart from seenIds because the two answer different questions: seenIds is
+ * "was this on a page we fetched", deliveredIds is "did the user get shown this".
+ * A filter change has to forget the former so newly-qualifying listings are
+ * reconsidered, but must keep the latter or listings the user already saw — and
+ * possibly cleared — come back.
+ */
+function markDelivered(state, searchId, items) {
+  const delivered = (state.deliveredIds[searchId] ??= new Set());
+  for (const item of items) {
+    delivered.add(item.itemId);
+  }
+}
 
 /**
  * Compute a random poll delay for a search, respecting per-search overrides.
@@ -68,6 +86,8 @@ function dedupeAgainstFeed(state, items, search) {
         existing.searchIds.push(item.searchId);
         console.log(`[${search.source}] [${search.name}] Cross-search duplicate merged: ${item.itemId}`);
       }
+      // Already on screen, so it counts as delivered for this search too.
+      markDelivered(state, search.id, [item]);
     } else {
       trulyNew.push(item);
     }
@@ -164,6 +184,13 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       state.seenIds[search.id] = new Set(entries.slice(entries.length - SEEN_IDS_MAX_SIZE));
       console.log(`[polling] [${search.name}] Pruned seenIds from ${entries.length} to ${SEEN_IDS_MAX_SIZE}`);
     }
+    // Same cap on deliveredIds — a filter change seeds seenIds from this set, so
+    // letting it grow unbounded would quietly defeat the cap above.
+    const searchDeliveredIds = state.deliveredIds[search.id];
+    if (searchDeliveredIds && searchDeliveredIds.size > SEEN_IDS_MAX_SIZE) {
+      const entries = [...searchDeliveredIds];
+      state.deliveredIds[search.id] = new Set(entries.slice(entries.length - SEEN_IDS_MAX_SIZE));
+    }
 
     // Reset consecutive-error counter on any successful fetch.
     if (search._errorCount) search._errorCount = 0;
@@ -186,6 +213,7 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       }
       if (initialItems.length > 0) {
         pushToFeed(state, initialItems);
+        markDelivered(state, search.id, initialItems);
         onNewItems(initialItems, true);
         console.log(
           `[${search.source}] [${search.name}] Initialised - ${items.length} listing(s) seen${filterNote}, ${initialItems.length} from last ${showHours}h added to feed`,
@@ -201,6 +229,7 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
       if (trulyNew.length > 0) {
         console.log(`[${search.source}] [${search.name}] Found ${trulyNew.length} new listing(s)`);
         pushToFeed(state, trulyNew);
+        markDelivered(state, search.id, trulyNew);
         onNewItems(trulyNew, false);
         onStatus(search.id, { lastFetched: new Date().toISOString(), newCount: trulyNew.length, error: null });
       } else {

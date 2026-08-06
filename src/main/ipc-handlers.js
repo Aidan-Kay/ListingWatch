@@ -40,9 +40,19 @@ function cleanTerms(terms) {
  * isInit so no notifications fire. Used whenever a filter changes, since items
  * already marked seen may now qualify — clearing seenIds alone would make the
  * steady-state path treat the entire page as new and spam notifications.
+ *
+ * seenIds is rebuilt from deliveredIds rather than emptied. The point of the
+ * reset is to reconsider listings the filters previously rejected, not to
+ * re-announce ones the user has already been shown — those may well have been
+ * cleared from the feed, which would otherwise leave nothing to suppress them.
  */
 function resetSearchSeenState(state, searchId) {
-  delete state.seenIds[searchId];
+  const delivered = state.deliveredIds[searchId];
+  if (delivered && delivered.size > 0) {
+    state.seenIds[searchId] = new Set(delivered);
+  } else {
+    delete state.seenIds[searchId];
+  }
   delete state.initialised[searchId];
 }
 
@@ -192,6 +202,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     stopSearch(id, state);
     // Per-search seenIds — O(1) delete rather than O(n) prefix scan
     delete state.seenIds[id];
+    delete state.deliveredIds[id];
     // Mutate feed in-place to preserve the shared reference used by polling.js.
     // For multi-search items (searchIds array), remove just the deleted search's ID;
     // only remove the item from the feed if it has no remaining search associations.
@@ -572,6 +583,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       }
       // Clear per-search runtime state for a clean slate after import.
       state.seenIds = {};
+      state.deliveredIds = {};
       state.initialised = {};
       const merged = { ...getSettings(), ...data.settings };
       setSettings(merged);

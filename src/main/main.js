@@ -68,6 +68,7 @@ const state = {
   feedIndex: new Map(), // Map<"source:itemId", feedItem> — O(1) cross-search dedup index
   favourites: [], // Array of favourited listing snapshots (persisted to favourites.json)
   seenIds: {}, // Record<searchId, Set<itemId>> — per-search dedup sets (avoids O(n) prefix scan on delete)
+  deliveredIds: {}, // Record<searchId, Set<itemId>> — IDs actually surfaced to the user; survives a filter-change reset
   initialised: {}, // searchId → bool (has first fetch occurred)
   timers: {}, // searchId → setTimeout handle
 };
