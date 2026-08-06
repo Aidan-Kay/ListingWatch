@@ -149,10 +149,16 @@ function updateKeywordListCount() {
   const unbalanced = terms.filter((t) => (t.match(/\(/g) || []).length !== (t.match(/\)/g) || []).length).length;
   const bracketNote = unbalanced > 0 ? ` · ${unbalanced} unbalanced ( )` : "";
 
+  // A line of nothing but exclusions has no term left to match, so the matcher
+  // drops it — say so rather than letting it look like a working filter.
+  const excludeOnly = terms.filter((t) => !/[\p{L}\p{N}]/u.test(t.replace(/(^|\s)-\S+/gu, " "))).length;
+  const excludeNote = excludeOnly > 0 ? ` · ${excludeOnly} with no term to match` : "";
+
+  const warn = unbalanced > 0 || excludeOnly > 0;
   const el = document.getElementById("kl-count");
-  el.textContent = `${unique} ${unique === 1 ? "term" : "terms"}${dupeNote}${bracketNote}`;
-  el.classList.toggle("text-yellow-500", unbalanced > 0);
-  el.classList.toggle("text-neutral-500", unbalanced === 0);
+  el.textContent = `${unique} ${unique === 1 ? "term" : "terms"}${dupeNote}${bracketNote}${excludeNote}`;
+  el.classList.toggle("text-yellow-500", warn);
+  el.classList.toggle("text-neutral-500", !warn);
 }
 
 /** Show how many searches use the list being edited, so deletes aren't blind. */

@@ -26,6 +26,13 @@
 // compile time into "final fantasy 7" and "final fantasy vii". Matching itself
 // stays a plain comparison; only compilation knows about the syntax.
 //
+// A term may also carry exclusions, written as a leading "-" on a word:
+// "Super Mario Party -Jamboree" matches "Super Mario Party - Nintendo Switch"
+// but not "Super Mario Party Jamboree". Exclusions are matched by the same two
+// rules as the term itself, and any one of them hitting rejects the whole term
+// (other terms in the list are unaffected). This is the counterpart to a
+// search's exclude-keywords, but scoped to the one term that needs it.
+//
 // Pure module: no Electron dependencies, so it can be exercised standalone.
 
 // Ceiling on the variants one term may expand to, so a line of nested
@@ -117,18 +124,92 @@ function expandAlternatives(text) {
   return variants.map((v) => v + literal);
 }
 
+/**
+ * Split a term into the part that must match and the parts that must not.
+ *
+ * A "-" negates only when it opens a word — at the start of the term or after
+ * whitespace — and is followed by a non-space character. That keeps hyphenated
+ * titles intact ("Spider-Man", "Yu-Gi-Oh") and leaves a spaced-out dash
+ * separator ("Zelda - Ocarina of Time") as the literal it looks like. The
+ * excluded chunk runs to the next top-level space, so an alternation group
+ * comes along whole: "-(Jamboree|Superstars)", or "-(breath of the wild)" for
+ * a phrase.
+ *
+ *   "Super Mario Party -Jamboree" -> { include: "Super Mario Party ", excludes: ["Jamboree"] }
+ *
+ * @param {string} text
+ * @returns {{include: string, excludes: string[]}}
+ */
+function splitExclusions(text) {
+  let include = "";
+  const excludes = [];
+  let i = 0;
+
+  while (i < text.length) {
+    const opensWord = i === 0 || /\s/.test(text[i - 1]);
+    const next = text[i + 1];
+    if (text[i] !== "-" || !opensWord || !next || /\s/.test(next)) {
+      include += text[i];
+      i++;
+      continue;
+    }
+
+    // Consume up to the next space outside of an alternation group.
+    let j = i + 1;
+    let depth = 0;
+    while (j < text.length) {
+      const ch = text[j];
+      if (ch === "(") depth++;
+      else if (ch === ")") depth = Math.max(0, depth - 1);
+      else if (depth === 0 && /\s/.test(ch)) break;
+      j++;
+    }
+    excludes.push(text.slice(i + 1, j));
+    i = j;
+  }
+
+  return { include, excludes };
+}
+
+/**
+ * Expand a piece of term text into its matchable variants, dropping any that
+ * normalise to nothing or repeat one already produced here.
+ *
+ * @param {string} text
+ * @returns {{tokens: string[], squashed: string}[]}
+ */
+function compileVariants(text) {
+  const variants = [];
+  const seen = new Set();
+  for (const candidate of expandAlternatives(text)) {
+    const norm = normalise(candidate);
+    if (!norm || seen.has(norm)) continue;
+    seen.add(norm);
+    const tokens = norm.split(" ");
+    variants.push({ tokens, squashed: tokens.join("") });
+  }
+  return variants;
+}
+
 // Compiled-form cache, keyed by list id. Invalidated when the list's version
 // changes so a 2000-term list is normalised on edit rather than on every poll.
 const _compiled = new Map();
 
 /**
  * Compile a keyword list into its matchable form. Each term expands to one or
- * more variants (via alternation groups); variants that normalise to nothing,
- * or that duplicate one already seen, are dropped. `raw` is preserved so the
- * feed can report the term the user actually wrote, not the expanded variant.
+ * more variants (via alternation groups) plus any exclusions; variants that
+ * normalise to nothing, or that duplicate one already seen, are dropped. `raw`
+ * is preserved so the feed can report the term the user actually wrote, not the
+ * expanded variant.
+ *
+ * Two terms only count as duplicates when their exclusions agree as well, so
+ * "Mario Party" and "Mario Party -Jamboree" both survive in one list.
+ *
+ * A term that is nothing but exclusions ("-Jamboree") is dropped: read
+ * literally it would match every listing, which is never what was meant.
  *
  * @param {{id: string, version: number, terms: string[]}} list
- * @returns {{id: string, version: number, terms: {raw: string, variants: {tokens: string[], squashed: string}[]}[]}}
+ * @returns {{id: string, version: number, terms: {raw: string, variants: {tokens: string[], squashed: string}[], excludes: {tokens: string[], squashed: string}[]}[]}}
  */
 function compileList(list) {
   const version = list.version || 0;
@@ -138,15 +219,20 @@ function compileList(list) {
   const seen = new Set();
   const terms = [];
   for (const raw of Array.isArray(list.terms) ? list.terms : []) {
+    const { include, excludes: excludeText } = splitExclusions(String(raw ?? ""));
+    const excludes = excludeText.flatMap((text) => compileVariants(text));
+    // Normalised tokens never contain "|", so it separates the two halves of
+    // the dedupe key without "a b" colliding with "a" excluding "b".
+    const signature = excludes.map((e) => e.tokens.join(" ")).join("|");
+
     const variants = [];
-    for (const candidate of expandAlternatives(String(raw ?? ""))) {
-      const norm = normalise(candidate);
-      if (!norm || seen.has(norm)) continue;
-      seen.add(norm);
-      const tokens = norm.split(" ");
-      variants.push({ tokens, squashed: tokens.join("") });
+    for (const variant of compileVariants(include)) {
+      const key = `${variant.tokens.join(" ")}|${signature}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      variants.push(variant);
     }
-    if (variants.length > 0) terms.push({ raw: String(raw).trim(), variants });
+    if (variants.length > 0) terms.push({ raw: String(raw).trim(), variants, excludes });
   }
 
   const entry = { id: list.id, version, terms };
@@ -215,15 +301,14 @@ function matchTitle(title, compiledLists) {
     ends.add(offset);
   }
 
+  const hits = (variant) =>
+    hasAllTokens(titleTokenSet, variant.tokens) || hasSquashedRun(titleSquashed, starts, ends, variant.squashed);
+
   const matched = new Set();
   for (const list of compiledLists) {
     for (const term of list.terms) {
-      for (const variant of term.variants) {
-        if (hasAllTokens(titleTokenSet, variant.tokens) || hasSquashedRun(titleSquashed, starts, ends, variant.squashed)) {
-          matched.add(term.raw);
-          break;
-        }
-      }
+      // Exclusions are only worth checking once the term itself has matched.
+      if (term.variants.some(hits) && !term.excludes.some(hits)) matched.add(term.raw);
     }
   }
   return [...matched];
@@ -267,6 +352,7 @@ module.exports = {
   MAX_TERM_VARIANTS,
   normalise,
   expandAlternatives,
+  splitExclusions,
   compileList,
   compileLists,
   countTerms,
