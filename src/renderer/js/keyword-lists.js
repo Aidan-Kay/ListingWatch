@@ -6,12 +6,45 @@
 // Depends on: state.js (keywordLists, editingKeywordListId, searchModalIncludeLists),
 //             helpers.js (escapeHtml, escapeAttr), app.js (showToast)
 
-/** Split a textarea's contents into terms (one per line, or comma-separated). */
+/**
+ * Split a textarea's contents into terms (one per line, or comma-separated).
+ *
+ * A comma inside an alternation group ("(7,VII)") or a quoted phrase belongs to
+ * the term, so only top-level commas separate. Mirrors splitTerms() in
+ * main/shared/keyword-match.js — the renderer loads plain scripts and cannot
+ * require it, so the two are kept in step by hand.
+ */
 function parseTermsInput(text) {
-  return String(text || "")
-    .split(/[\r\n,]+/)
-    .map((t) => t.trim())
-    .filter(Boolean);
+  const str = String(text || "");
+  const terms = [];
+  let current = "";
+  let depth = 0;
+  let i = 0;
+
+  while (i < str.length) {
+    const ch = str[i];
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < str.length && str[j] !== '"' && str[j] !== "\n" && str[j] !== "\r") j++;
+      const end = str[j] === '"' ? j + 1 : j;
+      current += str.slice(i, end);
+      i = end;
+      continue;
+    }
+    if (ch === "\n" || ch === "\r" || (ch === "," && depth === 0)) {
+      terms.push(current);
+      current = "";
+      i++;
+      continue;
+    }
+    if (ch === "(") depth++;
+    else if (ch === ")") depth = Math.max(0, depth - 1);
+    current += ch;
+    i++;
+  }
+  terms.push(current);
+
+  return terms.map((t) => t.trim()).filter(Boolean);
 }
 
 /** Terms currently in the editor textarea. */
@@ -149,14 +182,22 @@ function updateKeywordListCount() {
   const unbalanced = terms.filter((t) => (t.match(/\(/g) || []).length !== (t.match(/\)/g) || []).length).length;
   const bracketNote = unbalanced > 0 ? ` · ${unbalanced} unbalanced ( )` : "";
 
+  // Likewise an odd number of quotes: the stray one is read as a literal
+  // character, so the phrase the user meant to pin down isn't pinned at all.
+  const unpaired = terms.filter((t) => (t.match(/"/g) || []).length % 2 !== 0).length;
+  const quoteNote = unpaired > 0 ? ` · ${unpaired} unpaired "` : "";
+
   // A line of nothing but exclusions has no term left to match, so the matcher
-  // drops it — say so rather than letting it look like a working filter.
-  const excludeOnly = terms.filter((t) => !/[\p{L}\p{N}]/u.test(t.replace(/(^|\s)-\S+/gu, " "))).length;
+  // drops it — say so rather than letting it look like a working filter. The
+  // chunk after "-" runs to the next space unless a phrase or group extends it.
+  const excludeOnly = terms.filter(
+    (t) => !/[\p{L}\p{N}]/u.test(t.replace(/(^|\s)-(?:"[^"]*"?|\([^)]*\)?|\S+)/gu, " ")),
+  ).length;
   const excludeNote = excludeOnly > 0 ? ` · ${excludeOnly} with no term to match` : "";
 
-  const warn = unbalanced > 0 || excludeOnly > 0;
+  const warn = unbalanced > 0 || unpaired > 0 || excludeOnly > 0;
   const el = document.getElementById("kl-count");
-  el.textContent = `${unique} ${unique === 1 ? "term" : "terms"}${dupeNote}${bracketNote}${excludeNote}`;
+  el.textContent = `${unique} ${unique === 1 ? "term" : "terms"}${dupeNote}${bracketNote}${quoteNote}${excludeNote}`;
   el.classList.toggle("text-yellow-500", warn);
   el.classList.toggle("text-neutral-500", !warn);
 }

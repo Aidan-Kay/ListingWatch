@@ -10,7 +10,7 @@ const { scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = requir
 const { sendNotifications } = require("./notifications");
 const { MARKETPLACE_SOURCES } = require("./shared/constants");
 const { getAdapter } = require("./shared/marketplace-adapters");
-const { invalidateCompiled } = require("./shared/keyword-match");
+const { invalidateCompiled, splitTerms } = require("./shared/keyword-match");
 
 // Cap on a single imported term file, to keep a mis-selected file from being
 // slurped into memory and written back out to keyword-lists.json.
@@ -334,7 +334,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
         throw new Error(`File is too large (${Math.round(size / 1024 / 1024)} MB). Limit is 5 MB.`);
       }
       const raw = fs.readFileSync(filePaths[0], "utf8");
-      const terms = cleanTerms(raw.split(/[\r\n,]+/));
+      const terms = cleanTerms(splitTerms(raw));
       return { ok: true, terms, name: path.basename(filePaths[0]).replace(/\.[^.]+$/, "") };
     } catch (err) {
       return { ok: false, error: err.message };

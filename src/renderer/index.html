@@ -330,10 +330,12 @@
                     rows="18"
                     oninput="updateKeywordListCount()"
                     class="input-field font-mono text-xs leading-relaxed resize-y"
-                    placeholder="One term per line&#10;&#10;Ico&#10;Shadow of the Colossus&#10;Final Fantasy (7|VII)&#10;Super Mario Party -Jamboree"
+                    placeholder="One term per line&#10;&#10;Ico&#10;&quot;Shadow of the Colossus&quot;&#10;Final Fantasy (7|VII)&#10;Super Mario Party -Jamboree"
                   ></textarea>
                   <div class="flex items-center justify-between mt-1">
-                    <p class="text-xs text-neutral-500">One per line, or comma-separated. Case and accents are ignored when matching.</p>
+                    <p class="text-xs text-neutral-500">
+                      One per line, or comma-separated. Case and accents are ignored when matching.
+                    </p>
                     <span id="kl-count" class="text-xs text-neutral-500 flex-shrink-0 ml-2">0 terms</span>
                   </div>
                   <p class="text-xs text-neutral-500 mt-1.5">
@@ -341,12 +343,18 @@
                     <em>Paper Mario Thousand Year Door</em> still matches <em>Paper Mario The Thousand-Year Door</em>. Numbers count as
                     words, so <em>Resident Evil 3</em> will not match <em>Resident Evil 4</em>. Use
                     <code class="text-neutral-400">(a|b)</code> for alternatives — <em>Final Fantasy (7|VII)</em> matches both spellings.
+                    Commas work too, so a group copied from eBay — <em>Final Fantasy (7,VII)</em> — behaves the same.
+                  </p>
+                  <p class="text-xs text-neutral-500 mt-1.5">
+                    Wrap words in <code class="text-neutral-400">"quotes"</code> to demand them together and in that order:
+                    <em>"the thousand year door"</em> won't match a bundle that happens to mention those words apart. Spacing is still
+                    ignored, so <em>"fifa 21"</em> finds <em>FIFA21</em>. Anything outside the quotes stays loose.
                   </p>
                   <p class="text-xs text-neutral-500 mt-1.5">
                     Put <code class="text-neutral-400">-</code> in front of a word to ignore titles containing it —
                     <em>Super Mario Party -Jamboree</em> skips <em>Super Mario Party Jamboree</em>. Add as many as you need, and combine
-                    them with alternatives for a group or a phrase: <em>-(Jamboree|Superstars)</em>, <em>-(breath of the wild)</em>.
-                    Hyphens inside a word (<em>Spider-Man</em>) are left alone.
+                    them with a group or a phrase: <em>-(Jamboree|Superstars)</em>, <em>-"breath of the wild"</em>. Hyphens inside a word
+                    (<em>Spider-Man</em>) are left alone.
                   </p>
                 </div>
                 <p id="kl-usage" class="text-xs text-neutral-500"></p>
