@@ -4,6 +4,7 @@ const { getAdapter } = require("./shared/marketplace-adapters");
 const { isNoInternetError } = require("./shared/retry");
 const { SEEN_IDS_MAX_SIZE } = require("./shared/constants");
 const { compileLists, countTerms, matchTitle } = require("./shared/keyword-match");
+const { acquireSlot, resetSlots } = require("./shared/request-gate");
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const FEED_MAX_SIZE = 500;
@@ -135,6 +136,17 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
 
   try {
     const adapter = getAdapter(search.source);
+
+    // Hold off until this marketplace's next slot, so a profile's searches don't
+    // all hit the same host at once when polling starts.
+    const waited = await acquireSlot(search.source);
+    if (waited > 0) {
+      console.log(`[${search.source}] [${search.name}] Held ${Math.round(waited / 1000)}s to space out requests`);
+      // Re-check before spending the request: the point of queueing is to not
+      // send calls for searches that were paused or edited while they waited.
+      if (!isCurrent()) return;
+    }
+
     const items = await adapter.search(search);
 
     if (!isCurrent()) {
@@ -254,8 +266,10 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
 }
 
 /**
- * Schedule repeating fetches for a search. Performs an immediate fetch, then
- * queues the next one after a random interval.
+ * Schedule repeating fetches for a search. Performs an immediate fetch — as
+ * immediate as the per-marketplace spacing allows, which is what keeps a
+ * whole profile starting at once from arriving as one burst — then queues the
+ * next one after a random interval.
  *
  * @param {Object}   search
  * @param {Object}   state    - { searches, timers, feed, seenIds, initialised }
@@ -329,6 +343,9 @@ function stopAllSearches(state) {
     s._generation = (s._generation || 0) + 1;
   }
   state.initialised = {};
+  // Those queued slots belong to fetches that just became no-ops; keeping them
+  // would make the next Resume All wait out a queue for work nobody wants.
+  resetSlots();
 }
 
 /**
