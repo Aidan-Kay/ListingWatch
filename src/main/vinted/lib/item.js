@@ -20,10 +20,6 @@ class Item {
     this.createdAtTs = ts != null ? new Date(ts * 1000) : null;
     this.rawTimestamp = ts;
   }
-
-  equals(other) {
-    return this.id === other.id;
-  }
 }
 
 module.exports = { Item };

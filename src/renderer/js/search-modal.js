@@ -299,17 +299,25 @@ async function saveSearch() {
 
   try {
     searches = await window.api.saveSearch(search);
-    // Retroactively update cardColor on any existing feed items from this search
+    // Cards already on screen carry a snapshot of the search's name and colour,
+    // so an edit has to patch them or a renamed search keeps showing its old
+    // name until the app restarts.
     if (search.id) {
       const newColor = search.cardColor || null;
       let feedUpdated = false;
-      feedItems.forEach((item) => {
+      for (const item of feedItems) {
         const belongsToSearch = item.searchId === search.id || (Array.isArray(item.searchIds) && item.searchIds.includes(search.id));
-        if (belongsToSearch && item.cardColor !== newColor) {
+        if (!belongsToSearch) continue;
+        if (item.cardColor !== newColor) {
           item.cardColor = newColor;
           feedUpdated = true;
         }
-      });
+        // searchName is only the primary search's, so leave a merged card alone.
+        if (item.searchId === search.id && item.searchName !== search.name) {
+          item.searchName = search.name;
+          feedUpdated = true;
+        }
+      }
       if (feedUpdated) renderFeed();
     }
     renderSearches();

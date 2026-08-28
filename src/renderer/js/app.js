@@ -133,7 +133,13 @@ function showToast(message, type = "info") {
 }
 
 // ─── Interval timer (timestamps, badges, ended listings) ──────────────────────
+// Only the feed and favourites pages contain the elements this refreshes. Left
+// unconditional, four full-document querySelectorAll sweeps ran every 5 seconds
+// forever — with 500 cards that is thousands of element visits while the user
+// sits on Settings.
 setInterval(() => {
+  if (currentPage !== "feed" && currentPage !== "favourites" && currentPage !== "searches") return;
+
   document.querySelectorAll(".feed-age[data-date]").forEach((el) => {
     el.textContent = timeAgo(el.dataset.date);
   });
@@ -223,11 +229,22 @@ function showOfflineBanner(visible) {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
-  searches = await window.api.getSearches();
-  feedItems = await window.api.getFeed();
-  settings = await window.api.getSettings();
-  favourites = await window.api.getFavourites();
-  keywordLists = await window.api.getKeywordLists();
+  // Fetched together rather than in sequence — they don't depend on each other,
+  // and five round trips of startup latency is five too many. Wrapped because a
+  // single rejecting call used to abort init outright and leave a blank,
+  // silent UI with no clue what went wrong.
+  try {
+    [searches, feedItems, settings, favourites, keywordLists] = await Promise.all([
+      window.api.getSearches(),
+      window.api.getFeed(),
+      window.api.getSettings(),
+      window.api.getFavourites(),
+      window.api.getKeywordLists(),
+    ]);
+  } catch (err) {
+    console.error("[init] Failed to load initial state:", err);
+    showToast(`Failed to load saved data: ${err.message}`, "error");
+  }
 
   applySettings();
   initSettingsListeners();
