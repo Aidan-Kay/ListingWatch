@@ -25,10 +25,11 @@ function renderSearchCard(search) {
   return `
     <div
       data-search-id="${escapeAttr(search.id)}"
-      class="card p-4 flex items-center gap-4 cursor-pointer group hover:bg-neutral-700/30" style="${searchCardColorStyle}" onclick="openSearchModal('${escapeAttr(search.id)}')">
+      class="card search-card p-4 flex items-center gap-4 cursor-pointer group hover:bg-neutral-700/30" style="${searchCardColorStyle}">
       <!-- Enable toggle -->
       <button
-        onclick="toggleSearch('${escapeAttr(search.id)}', ${!search.enabled}); event.stopPropagation()"
+        data-action="toggle-enabled"
+        data-enable="${!search.enabled}"
         data-tooltip="${search.enabled ? "Pause search" : "Resume search"}"
         role="switch"
         aria-checked="${search.enabled}"
@@ -56,10 +57,11 @@ function renderSearchCard(search) {
       </div>
 
       <!-- Actions -->
-      <div class="flex items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()">
+      <div class="flex items-center gap-2 flex-shrink-0">
         <!-- Notify toggle (bell icon) -->
         <button
-          onclick="toggleSearchNotify('${escapeAttr(search.id)}', ${!notifyOn})"
+          data-action="toggle-notify"
+          data-notify="${!notifyOn}"
           data-tooltip="${notifyOn ? "Disable notifications" : "Enable notifications"}"
           role="switch"
           aria-checked="${notifyOn}"
@@ -74,7 +76,7 @@ function renderSearchCard(search) {
 
         <!-- Duplicate -->
         <button
-          onclick="duplicateSearch('${escapeAttr(search.id)}')"
+          data-action="duplicate"
           data-tooltip="Duplicate search"
           class="btn-icon"
         >
@@ -85,7 +87,7 @@ function renderSearchCard(search) {
 
         <!-- Delete -->
         <button
-          onclick="deleteSearch('${escapeAttr(search.id)}')"
+          data-action="delete"
           data-tooltip="Delete search"
           class="btn-icon hover:text-danger-500 hover:bg-danger-500/10 hover:border-danger-500/20"
         >
@@ -96,6 +98,44 @@ function renderSearchCard(search) {
       </div>
     </div>
   `;
+}
+
+/**
+ * One delegated listener for the whole list. The buttons carry their intent in
+ * data-action rather than an inline onclick, for the reason spelled out on
+ * renderFeedCard: escapeAttr does not survive being re-parsed as JavaScript.
+ */
+function initSearchListInteractions() {
+  const list = document.getElementById("searches-list");
+  if (!list) return;
+
+  list.addEventListener("click", (e) => {
+    const card = e.target.closest(".search-card");
+    if (!card) return;
+    const id = card.dataset.searchId;
+    const button = e.target.closest("[data-action]");
+
+    if (!button) {
+      openSearchModal(id);
+      return;
+    }
+    // Every action button sits on the card, which would otherwise open the editor.
+    e.stopPropagation();
+    switch (button.dataset.action) {
+      case "toggle-enabled":
+        toggleSearch(id, button.dataset.enable === "true");
+        break;
+      case "toggle-notify":
+        toggleSearchNotify(id, button.dataset.notify === "true");
+        break;
+      case "duplicate":
+        duplicateSearch(id);
+        break;
+      case "delete":
+        deleteSearch(id);
+        break;
+    }
+  });
 }
 
 function renderSearches() {

@@ -294,6 +294,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     const terms = cleanTerms(Array.isArray(list.terms) ? list.terms : []);
 
     const existing = list.id ? state.keywordLists.find((l) => l.id === list.id) : null;
+    let savedId = list.id;
     if (existing) {
       // Only bump the version when the terms actually change — the version is
       // both the compiled-form cache key and the trigger for re-scanning.
@@ -306,8 +307,9 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
         resetSearchesUsingList(state, existing.id);
       }
     } else {
+      savedId = `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       state.keywordLists.push({
-        id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: savedId,
         name,
         terms,
         version: 1,
@@ -316,7 +318,10 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     }
 
     saveKeywordLists(state.keywordLists);
-    return state.keywordLists;
+    // The id comes back rather than being inferred from the name: nothing stops
+    // two lists sharing a name, and matching on it left the editor pointed at
+    // the wrong list, whose terms the next Save would then overwrite.
+    return { lists: state.keywordLists, id: savedId };
   });
 
   ipcMain.handle("delete-keyword-list", (_event, id) => {

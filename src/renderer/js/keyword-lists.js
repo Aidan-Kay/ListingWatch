@@ -134,7 +134,7 @@ function renderKeywordListSidebar() {
     .map((list) => {
       const active = list.id === editingKeywordListId;
       return `
-        <button type="button" onclick="selectKeywordList('${escapeAttr(list.id)}')"
+        <button type="button" data-list-id="${escapeAttr(list.id)}"
           class="w-full text-left px-2 py-1.5 rounded text-sm transition-colors ${
             active ? "bg-accent-500 text-white" : "text-secondary hover:bg-neutral-700"
           }">
@@ -145,6 +145,20 @@ function renderKeywordListSidebar() {
         </button>`;
     })
     .join("");
+}
+
+/**
+ * One delegated listener for the sidebar, replacing an inline onclick per list —
+ * same reasoning as renderFeedCard: escapeAttr is not safe in a JS-string
+ * context, and the sidebar is rebuilt on every save.
+ */
+function initKeywordListSidebar() {
+  const container = document.getElementById("keyword-list-sidebar");
+  if (!container) return;
+  container.addEventListener("click", (e) => {
+    const button = e.target.closest("[data-list-id]");
+    if (button) selectKeywordList(button.dataset.listId);
+  });
 }
 
 function selectKeywordList(id) {
@@ -223,17 +237,16 @@ async function saveKeywordList() {
   }
 
   try {
-    keywordLists = await window.api.saveKeywordList({
+    const { lists, id } = await window.api.saveKeywordList({
       id: editingKeywordListId || undefined,
       name,
       terms: currentEditorTerms(),
     });
-    // A new list has a server-assigned id — re-select by name so the editor
-    // stays on what the user just saved.
-    if (!editingKeywordListId) {
-      const created = keywordLists.find((l) => l.name === name);
-      if (created) editingKeywordListId = created.id;
-    }
+    keywordLists = lists;
+    // Keep the editor on what was just saved. The id comes from the handler
+    // rather than a name lookup, which picked the wrong list when two shared a
+    // name — and the next Save would then overwrite that list's terms.
+    editingKeywordListId = id;
     renderKeywordListSidebar();
     updateKeywordListUsage();
     updateListsCountBadge();
@@ -251,7 +264,7 @@ async function deleteKeywordList() {
 
   const used = searches.filter((s) => Array.isArray(s.includeLists) && s.includeLists.includes(list.id)).length;
   const warning = used > 0 ? `\n\nIt is used by ${used} search${used === 1 ? "" : "es"}, which will stop filtering by it.` : "";
-  if (!confirm(`Delete "${list.name}"?${warning}`)) return;
+  if (!(await appConfirm(`Delete "${list.name}"?${warning}`, "Delete", true))) return;
 
   try {
     keywordLists = await window.api.deleteKeywordList(list.id);

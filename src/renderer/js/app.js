@@ -232,6 +232,8 @@ function showOfflineBanner(visible) {
   applySettings();
   initSettingsListeners();
   initCardGridInteractions();
+  initSearchListInteractions();
+  initKeywordListSidebar();
   updateListsCountBadge();
   renderSearches();
   renderFeed();
