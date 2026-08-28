@@ -26,6 +26,8 @@
 // compile time into "final fantasy 7" and "final fantasy vii". Matching itself
 // stays a plain comparison; only compilation knows about the syntax. Options
 // may be separated by "|" or by "," so a query copied off eBay works unchanged.
+// Groups do not nest: "a (b (c|d)|e)" is not expanded and logs a warning, and
+// the list editor flags it before the user saves.
 //
 // Quoting part of a term makes it a phrase: "The Legend of Zelda" only matches
 // titles carrying those words together and in that order, which is the escape
@@ -149,7 +151,8 @@ function splitOptions(body) {
  *   "Final Fantasy (7,VII)"      -> the same two
  *   "(Res|Resident) Evil (2|II)" -> 4 variants
  *
- * Groups do not nest. An unmatched "(" is treated as a literal character, so a
+ * Groups do not nest, and a nested one is warned about rather than expanded —
+ * see the note below. An unmatched "(" is treated as a literal character, so a
  * title like "Silent Hill (2001)" still behaves sensibly — a single-option
  * group just yields the text back. Empty alternatives are dropped: a stray
  * trailing "|" would otherwise silently widen the term to match everything.
@@ -188,6 +191,16 @@ function expandAlternatives(text) {
     const options = splitOptions(text.slice(i + 1, close));
     i = close + 1;
     if (options.length === 0) continue; // "()" contributes nothing
+
+    // A "(" surviving inside an option means the groups nest, which this
+    // expansion does not handle: "a (b (c|d)|e)" comes out as "a b (c |e)" and
+    // "a d |e)", the second of which normalises to the tokens "a d e" and then
+    // matches any title carrying those three words. That is a silent false
+    // positive rather than a silent miss, so it is worth saying out loud. The
+    // brackets are balanced, so the editor's bracket counter cannot catch it.
+    if (options.some((option) => option.includes("("))) {
+      console.warn(`[keyword-match] "${text}" nests alternation groups, which is not supported — it will not match as written`);
+    }
 
     const prefix = literal;
     literal = "";

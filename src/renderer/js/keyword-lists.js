@@ -159,22 +159,27 @@ function updateKeywordListCount() {
   const unbalanced = terms.filter((t) => (t.match(/\(/g) || []).length !== (t.match(/\)/g) || []).length).length;
   const bracketNote = unbalanced > 0 ? ` · ${unbalanced} unbalanced ( )` : "";
 
+  // Nested groups are balanced, so the count above passes them. The matcher
+  // cannot expand them and produces a corrupted variant that matches too much,
+  // so this is the one guardrail the user gets before saving.
+  const nested = terms.filter((t) => /\([^)]*\(/.test(t)).length;
+  const nestedNote = nested > 0 ? ` · ${nested} nested ( )` : "";
+
   // Likewise an odd number of quotes: the stray one is read as a literal
   // character, so the phrase the user meant to pin down isn't pinned at all.
   const unpaired = terms.filter((t) => (t.match(/"/g) || []).length % 2 !== 0).length;
   const quoteNote = unpaired > 0 ? ` · ${unpaired} unpaired "` : "";
 
   // A line of nothing but exclusions has no term left to match, so the matcher
-  // drops it — say so rather than letting it look like a working filter. The
-  // chunk after "-" runs to the next space unless a phrase or group extends it.
-  const excludeOnly = terms.filter(
-    (t) => !/[\p{L}\p{N}]/u.test(t.replace(/(^|\s)-(?:"[^"]*"?|\([^)]*\)?|\S+)/gu, " ")),
-  ).length;
+  // drops it — say so rather than letting it look like a working filter. Asking
+  // splitExclusions rather than re-deriving the rule with a regex means this
+  // agrees with the matcher on the edge cases by construction.
+  const excludeOnly = terms.filter((t) => !/[\p{L}\p{N}]/u.test(splitExclusions(t).include)).length;
   const excludeNote = excludeOnly > 0 ? ` · ${excludeOnly} with no term to match` : "";
 
-  const warn = unbalanced > 0 || unpaired > 0 || excludeOnly > 0;
+  const warn = unbalanced > 0 || nested > 0 || unpaired > 0 || excludeOnly > 0;
   const el = document.getElementById("kl-count");
-  el.textContent = `${unique} ${unique === 1 ? "term" : "terms"}${dupeNote}${bracketNote}${quoteNote}${excludeNote}`;
+  el.textContent = `${unique} ${unique === 1 ? "term" : "terms"}${dupeNote}${bracketNote}${nestedNote}${quoteNote}${excludeNote}`;
   el.classList.toggle("text-yellow-500", warn);
   el.classList.toggle("text-neutral-500", !warn);
 }
