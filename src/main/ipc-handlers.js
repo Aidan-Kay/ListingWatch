@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const ebay = require("./ebay/ebay");
 const { configureRequesterProxy } = require("./vinted/lib/requester");
-const { saveSearches, saveSettings, saveFavourites, saveKeywordLists } = require("./persistence");
+const { saveSearches, saveSettings, saveFavourites, saveKeywordLists, sanitiseSearches, searchesForRenderer } = require("./persistence");
 const { scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = require("./polling");
 const { sendNotifications } = require("./notifications");
 const { MARKETPLACE_SOURCES } = require("./shared/constants");
@@ -159,7 +159,7 @@ function makeCallbacks(state, getSettings, getWindow, getTray) {
  */
 function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   // ─── Searches ───────────────────────────────────────────────────────────────
-  ipcMain.handle("get-searches", () => state.searches);
+  ipcMain.handle("get-searches", () => searchesForRenderer(state.searches));
 
   ipcMain.handle("save-search", (_event, search) => {
     // ─── Defensive validation ───────────────────────────────────────────────────
@@ -216,7 +216,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       }
     }
     saveSearches(state.searches);
-    return state.searches;
+    return searchesForRenderer(state.searches);
   });
 
   ipcMain.handle("delete-search", (_event, id) => {
@@ -255,12 +255,12 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       if (state.searches[i].id === id) state.searches.splice(i, 1);
     }
     saveSearches(state.searches);
-    return state.searches;
+    return searchesForRenderer(state.searches);
   });
 
   ipcMain.handle("toggle-search", (_event, id, enabled) => {
     const search = state.searches.find((s) => s.id === id);
-    if (!search) return state.searches;
+    if (!search) return searchesForRenderer(state.searches);
     search.enabled = enabled;
     const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
     if (enabled) {
@@ -269,15 +269,15 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       stopSearch(id, state);
     }
     saveSearches(state.searches);
-    return state.searches;
+    return searchesForRenderer(state.searches);
   });
 
   ipcMain.handle("toggle-notify", (_event, id, notify) => {
     const search = state.searches.find((s) => s.id === id);
-    if (!search) return state.searches;
+    if (!search) return searchesForRenderer(state.searches);
     search.notify = notify;
     saveSearches(state.searches);
-    return state.searches;
+    return searchesForRenderer(state.searches);
   });
 
   // ─── Keyword Lists ──────────────────────────────────────────────────────────
@@ -557,7 +557,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       const data = {
         version: 2,
         exportedAt: new Date().toISOString(),
-        searches: state.searches,
+        searches: sanitiseSearches(state.searches),
         keywordLists: state.keywordLists,
         settings: exportSettings,
       };

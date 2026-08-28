@@ -65,22 +65,34 @@ function loadSearches() {
     .map(({ error: _ignored, ...rest }) => rest);
 }
 
-// Runtime-only fields that should never be written to disk
-const SEARCH_RUNTIME_FIELDS = ["error", "_errorCount", "_generation"];
+// Main-process bookkeeping the renderer has no business seeing. `error` is
+// deliberately absent: the renderer renders it on the search card.
+const SEARCH_INTERNAL_FIELDS = ["_errorCount", "_generation"];
 
-/**
- * Strip runtime-only fields from a list of searches. The single definition of
- * "what a persisted search looks like" — used by saveSearches, by export, and by
- * the IPC handlers that hand searches to the renderer, so a search cannot pick
- * up a stale generation counter or error string by being copied.
- */
-function sanitiseSearches(searches) {
+// The above plus the live error string — none of it belongs on disk or in a
+// backup, where restoring it would show stale error text on a healthy search.
+const SEARCH_RUNTIME_FIELDS = ["error", ...SEARCH_INTERNAL_FIELDS];
+
+function omitFields(searches, fields) {
   return searches.map((s) => {
     const copy = { ...s };
-    SEARCH_RUNTIME_FIELDS.forEach((f) => delete copy[f]);
+    for (const field of fields) delete copy[field];
     return copy;
   });
 }
+
+/**
+ * The shape a search takes on disk and in an exported backup. One definition, so
+ * "persisted search" cannot drift between saveSearches and export-data.
+ */
+const sanitiseSearches = (searches) => omitFields(searches, SEARCH_RUNTIME_FIELDS);
+
+/**
+ * The shape a search takes when handed to the renderer. Without this the
+ * renderer's mirror carries _generation, and duplicating a search clones it
+ * straight back to save-search — so a brand-new search is born mid-generation.
+ */
+const searchesForRenderer = (searches) => omitFields(searches, SEARCH_INTERNAL_FIELDS);
 
 function saveSearches(searches) {
   return queueWrite(searchesFile, sanitiseSearches(searches));
@@ -244,6 +256,7 @@ module.exports = {
   loadSearches,
   saveSearches,
   sanitiseSearches,
+  searchesForRenderer,
   loadKeywordLists,
   saveKeywordLists,
   loadSettings,
