@@ -322,7 +322,11 @@ function stopSearch(searchId, state) {
     clearTimeout(state.timers[searchId]);
     delete state.timers[searchId];
   }
-  delete state.initialised[searchId];
+  // `initialised` is deliberately left alone. It records "this search has fetched
+  // at least once", which stays true across a pause. Clearing it would send the
+  // next poll down the init path, where showListingsFromHours defaults to 0 and
+  // everything found while paused is discarded. Filter changes reset it on
+  // purpose via resetSearchSeenState().
   // Bump generation so any in-flight fetch becomes a no-op when it resolves.
   const search = state.searches.find((s) => s.id === searchId);
   if (search) search._generation = (search._generation || 0) + 1;
@@ -338,11 +342,13 @@ function stopAllSearches(state) {
     delete state.timers[id];
   }
   // Mirror stopSearch — bump generation on every search so in-flight fetches
-  // become no-ops. Also clear `initialised` so resume re-runs init logic.
+  // become no-ops. `initialised` is left intact for the same reason it is in
+  // stopSearch: a pause (including sleep/wake, which stops and restarts
+  // everything) must not make the next poll treat the backlog as an init page
+  // and throw it away.
   for (const s of state.searches) {
     s._generation = (s._generation || 0) + 1;
   }
-  state.initialised = {};
   // Those queued slots belong to fetches that just became no-ops; keeping them
   // would make the next Resume All wait out a queue for work nobody wants.
   resetSlots();

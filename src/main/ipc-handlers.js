@@ -203,6 +203,9 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     // Per-search seenIds — O(1) delete rather than O(n) prefix scan
     delete state.seenIds[id];
     delete state.deliveredIds[id];
+    // stopSearch keeps `initialised` (see its comment); a delete is the one
+    // lifecycle event where the search really is gone, so clear it here.
+    delete state.initialised[id];
     // Mutate feed in-place to preserve the shared reference used by polling.js.
     // For multi-search items (searchIds array), remove just the deleted search's ID;
     // only remove the item from the feed if it has no remaining search associations.
