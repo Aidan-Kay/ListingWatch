@@ -2,12 +2,9 @@
 
 const { getAdapter } = require("./shared/marketplace-adapters");
 const { isNoInternetError } = require("./shared/retry");
-const { SEEN_IDS_MAX_SIZE } = require("./shared/constants");
-const { compileLists, countTerms, matchTitle } = require("./shared/keyword-match");
+const { SEEN_IDS_MAX_SIZE, FEED_MAX_SIZE } = require("../shared/constants");
+const { compileLists, countTerms, matchTitle } = require("../shared/keyword-match");
 const { acquireSlot, resetSlots } = require("./shared/request-gate");
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const FEED_MAX_SIZE = 500;
 
 /**
  * @typedef {Object} PollState
@@ -370,7 +367,6 @@ function startAllSearches(state, onNewItems, onStatus, getSettings) {
 }
 
 module.exports = {
-  FEED_MAX_SIZE,
   randomInterval,
   fetchSearch,
   scheduleSearch,

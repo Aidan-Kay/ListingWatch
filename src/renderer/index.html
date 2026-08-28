@@ -1522,6 +1522,10 @@
     </div>
 
 
+    <!-- Shared with the main process; loaded first so the renderer modules below
+         see the same constants and term grammar the matcher uses. -->
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/keyword-match.js"></script>
     <script src="js/constants.js"></script>
     <script src="js/state.js"></script>
     <script src="js/helpers.js"></script>

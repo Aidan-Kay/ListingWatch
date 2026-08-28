@@ -109,11 +109,6 @@ function plural(n, singular, pluralForm) {
   return `${n} ${n === 1 ? singular : pluralForm || singular + "s"}`;
 }
 
-function ebayImageUrl(url, size = 1600) {
-  if (!url) return url;
-  return url.replace(/s-l\d+/, `s-l${size}`);
-}
-
 function escapeHtml(str) {
   if (!str) return "";
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");

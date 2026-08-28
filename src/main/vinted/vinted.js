@@ -2,7 +2,7 @@
 
 const { getRequester } = require("./lib/requester");
 const { Item } = require("./lib/item");
-const { CURRENCY_SYMBOLS } = require("../shared/constants");
+const { CURRENCY_SYMBOLS } = require("../../shared/constants");
 
 const VINTED_API_URL = "/api/v2";
 const VINTED_PRODUCTS_ENDPOINT = "catalog/items";

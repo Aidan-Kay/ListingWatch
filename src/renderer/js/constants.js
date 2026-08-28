@@ -1,7 +1,8 @@
 // ─── Renderer-side Constants ──────────────────────────────────────────────────
-// Single source of truth for site/currency data used across renderer modules.
-// Note: CURRENCY_SYMBOLS (currency code → symbol) lives only in
-// src/main/shared/constants.js — the renderer uses SITE_CURRENCY_SYMBOL instead.
+// Site/currency data used across renderer modules. Values shared with the main
+// process live in src/shared/constants.js instead; CURRENCY_SYMBOLS (currency
+// code → symbol) is there but unused here — the renderer wants
+// SITE_CURRENCY_SYMBOL, which is keyed by site.
 
 // Maps site key → currency symbol (used in search list price display)
 const SITE_CURRENCY_SYMBOL = {
@@ -61,6 +62,5 @@ const EBAY_CATEGORY_URLS = {
 // Default accent colour used when no user preference has been saved
 const DEFAULT_ACCENT_COLOR = "#5d66f6";
 
-// Polling / feed limits (mirrors main-process constants)
-const FEED_MAX_SIZE = 500;
-const NEW_ITEM_WINDOW_MS = 60_000; // 1 minute — threshold for "NEW" badge
+// FEED_MAX_SIZE and NEW_ITEM_WINDOW_MS come from src/shared/constants.js, which
+// index.html loads before this file — they have to agree with the main process.

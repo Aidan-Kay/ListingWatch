@@ -6,50 +6,13 @@
 // Depends on: state.js (keywordLists, editingKeywordListId, searchModalIncludeLists),
 //             helpers.js (escapeHtml, escapeAttr), app.js (showToast)
 
-/**
- * Split a textarea's contents into terms (one per line, or comma-separated).
- *
- * A comma inside an alternation group ("(7,VII)") or a quoted phrase belongs to
- * the term, so only top-level commas separate. Mirrors splitTerms() in
- * main/shared/keyword-match.js — the renderer loads plain scripts and cannot
- * require it, so the two are kept in step by hand.
- */
-function parseTermsInput(text) {
-  const str = String(text || "");
-  const terms = [];
-  let current = "";
-  let depth = 0;
-  let i = 0;
-
-  while (i < str.length) {
-    const ch = str[i];
-    if (ch === '"') {
-      let j = i + 1;
-      while (j < str.length && str[j] !== '"' && str[j] !== "\n" && str[j] !== "\r") j++;
-      const end = str[j] === '"' ? j + 1 : j;
-      current += str.slice(i, end);
-      i = end;
-      continue;
-    }
-    if (ch === "\n" || ch === "\r" || (ch === "," && depth === 0)) {
-      terms.push(current);
-      current = "";
-      i++;
-      continue;
-    }
-    if (ch === "(") depth++;
-    else if (ch === ")") depth = Math.max(0, depth - 1);
-    current += ch;
-    i++;
-  }
-  terms.push(current);
-
-  return terms.map((t) => t.trim()).filter(Boolean);
-}
-
 /** Terms currently in the editor textarea. */
 function currentEditorTerms() {
-  return parseTermsInput(document.getElementById("kl-terms").value);
+  // splitTerms comes from src/shared/keyword-match.js, the same parser the
+  // matcher runs. The renderer used to carry a hand-copied twin, so the term
+  // count and warnings shown here could describe a different parse from the one
+  // that actually decides which listings match.
+  return splitTerms(document.getElementById("kl-terms").value);
 }
 
 // ─── Search-modal checkbox group ──────────────────────────────────────────────

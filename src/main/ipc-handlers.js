@@ -8,9 +8,9 @@ const { configureRequesterProxy } = require("./vinted/lib/requester");
 const { saveSearches, saveSettings, saveFavourites, saveKeywordLists, sanitiseSearches, searchesForRenderer } = require("./persistence");
 const { scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = require("./polling");
 const { sendNotifications } = require("./notifications");
-const { MARKETPLACE_SOURCES } = require("./shared/constants");
+const { MARKETPLACE_SOURCES } = require("../shared/constants");
 const { getAdapter } = require("./shared/marketplace-adapters");
-const { invalidateCompiled, splitTerms } = require("./shared/keyword-match");
+const { invalidateCompiled, splitTerms } = require("../shared/keyword-match");
 
 // Cap on a single imported term file, to keep a mis-selected file from being
 // slurped into memory and written back out to keyword-lists.json.

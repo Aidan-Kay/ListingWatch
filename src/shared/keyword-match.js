@@ -44,7 +44,8 @@
 // are unaffected). This is the counterpart to a search's exclude-keywords, but
 // scoped to the one term that needs it.
 //
-// Pure module: no Electron dependencies, so it can be exercised standalone.
+// Pure module: no Electron dependencies, so both processes load it directly and
+// it can be exercised standalone. See the footer for how the dual load works.
 
 // Ceiling on the variants one term may expand to, so a line of nested
 // alternations can't blow up a 2000-term list.
@@ -561,16 +562,22 @@ function invalidateCompiled(listId) {
   _compiled.delete(listId);
 }
 
-module.exports = {
-  MAX_TERM_VARIANTS,
-  normalise,
-  expandAlternatives,
-  splitExclusions,
-  parsePhrases,
-  splitTerms,
-  compileList,
-  compileLists,
-  countTerms,
-  matchTitle,
-  invalidateCompiled,
-};
+// Dual-loadable. The main process require()s this file; the renderer <script>-loads
+// it, where the top-level declarations above already become globals — so only the
+// CommonJS side needs an explicit export. One definition of this either way, rather
+// than a hand-maintained copy on each side of the process boundary.
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    MAX_TERM_VARIANTS,
+    normalise,
+    expandAlternatives,
+    splitExclusions,
+    parsePhrases,
+    splitTerms,
+    compileList,
+    compileLists,
+    countTerms,
+    matchTitle,
+    invalidateCompiled,
+  };
+}

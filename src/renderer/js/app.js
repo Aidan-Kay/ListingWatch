@@ -243,6 +243,12 @@ function showOfflineBanner(visible) {
   // Listen for new listings pushed from main process
   window.api.onNewListings((items) => {
     feedItems.unshift(...items);
+    // Mirror the main process's cap. prependFeedItems only trims the DOM, so
+    // without this the backing array grows for the life of the session: the
+    // header count drifts above what main actually holds, and any full
+    // renderFeed() — a filter, sort, or zoom change — rebuilds the grid from
+    // the whole array, blowing past the 500-node budget on an innocuous click.
+    if (feedItems.length > FEED_MAX_SIZE) feedItems.length = FEED_MAX_SIZE;
     newCount += items.length;
     prependFeedItems(items);
     updateFeedBadge();

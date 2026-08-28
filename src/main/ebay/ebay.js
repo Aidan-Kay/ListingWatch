@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { net } = require("electron");
-const { CURRENCY_SYMBOLS } = require("../shared/constants");
+const { CURRENCY_SYMBOLS, ebayImageUrl } = require("../../shared/constants");
 const { withRetry, isTransientError } = require("../shared/retry");
 const { loadApiUsage, saveApiUsage } = require("../persistence");
 const { writeAtomicSync } = require("../shared/write-queue");
@@ -56,12 +56,6 @@ const CATEGORY_TREE_IDS = {
   ES: "186",
   IT: "101",
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function ebayImageUrl(url, size = 1600) {
-  if (!url) return url;
-  return url.replace(/s-l\d+/, `s-l${size}`);
-}
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 // Call configure() once at startup with a settings getter and the userData path.
