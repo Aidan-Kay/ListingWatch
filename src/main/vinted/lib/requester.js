@@ -125,6 +125,15 @@ class VintedClient {
     });
 
     this._win = win;
+    // A crashed renderer leaves the window itself alive — isDestroyed() stays
+    // false while webContents is gone — so _ensureWindow's fast path would keep
+    // handing back a corpse. Dropping the ready flag sends the next call
+    // through _createWindow instead.
+    win.webContents.on("render-process-gone", (_event, details) => {
+      console.warn(`[vinted] Renderer gone for ${this._domain} (${details.reason}) — window will be rebuilt`);
+      this._windowReady = false;
+    });
+
     await this._navigateAndWaitForChallenge(this._baseUrl);
     this._windowReady = true;
     console.log(`[vinted] Browser window ready for ${this._domain}`);
@@ -153,10 +162,23 @@ class VintedClient {
     const MAX_WAIT = 30_000;
 
     await new Promise((resolve, reject) => {
+      // The listeners below call cleanup() and then wait 2s before resolving, so
+      // the promise stays unsettled during that buffer. Guarding both outcomes
+      // makes a late loadURL rejection unable to overturn a navigation that
+      // already succeeded, rather than merely unlikely to.
+      let settled = false;
+      const settle = (fn) => (value) => {
+        if (settled) return;
+        settled = true;
+        fn(value);
+      };
+      const finish = settle(resolve);
+      const fail = settle(reject);
+
       const timer = setTimeout(() => {
         cleanup();
         console.warn(`[vinted] Challenge wait timed out after ${MAX_WAIT / 1000}s for ${this._domain}`);
-        resolve();
+        finish();
       }, MAX_WAIT);
 
       const cleanup = () => {
@@ -171,7 +193,7 @@ class VintedClient {
         if (navUrl.startsWith(this._baseUrl) && !navUrl.includes("cdn-cgi/")) {
           cleanup();
           // Small buffer for final cookie writes after redirect.
-          setTimeout(resolve, 2000);
+          setTimeout(finish, 2000);
         }
       };
 
@@ -181,7 +203,7 @@ class VintedClient {
         // we're done. If it's a CF challenge page, keep waiting for the redirect.
         if (currentUrl.startsWith(this._baseUrl) && !currentUrl.includes("cdn-cgi/")) {
           cleanup();
-          setTimeout(resolve, 2000);
+          setTimeout(finish, 2000);
         }
       };
 
@@ -189,8 +211,14 @@ class VintedClient {
       win.webContents.on("did-finish-load", onFinishLoad);
 
       win.loadURL(url).catch((err) => {
+        // Electron rejects loadURL whenever a redirect supersedes the
+        // navigation, which is exactly what solving a Cloudflare challenge does
+        // every time — the load succeeded and the promise still rejects. The
+        // did-navigate / did-finish-load listeners are the real signal, so only
+        // surface errors they cannot cover.
+        if (/ERR_ABORTED/.test(err.message || "")) return;
         cleanup();
-        reject(err);
+        fail(err);
       });
     });
   }
@@ -220,9 +248,10 @@ class VintedClient {
   }
 
   /**
-   * Tear down and reset the window. This is a last-resort fallback — it
-   * destroys the window and clears session cookies. Only used when the
-   * window itself is broken (e.g. renderer crash, disposed webContents).
+   * Tear down and reset the window. A last resort — it destroys the window and
+   * clears session cookies, which is exactly the Cloudflare context
+   * _solveChallenge works to preserve. Called from get() when an error says the
+   * window itself is broken (renderer crash, disposed webContents).
    * @returns {Promise<void>}
    */
   async _resetWindow() {
@@ -300,6 +329,15 @@ class VintedClient {
         const data = JSON.parse(result.body);
         return { status: result.status, data };
       } catch (err) {
+        // A disposed or crashed webContents means the window is the problem, not
+        // the request. isTransientError classifies it as retryable, so without
+        // this the loop burns every attempt against the same corpse — and every
+        // later poll does the same, leaving Vinted broken until the app
+        // restarts while exponential backoff climbs to 16x.
+        if (/disposed|crashed|destroyed/i.test(err.message || "")) {
+          console.warn(`[vinted] Window unusable for ${this._domain} — resetting`);
+          await this._resetWindow();
+        }
         if (isLast || !isTransientError(err)) throw err;
 
         const delay = this._retryBaseDelay * Math.pow(2, tried - 1);

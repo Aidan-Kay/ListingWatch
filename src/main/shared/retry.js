@@ -38,6 +38,12 @@ async function withRetry(fn, options = {}) {
  * Handles fetch() errors and Electron-specific renderer errors.
  */
 function isTransientError(err) {
+  // A whole-network outage is not worth a 3-attempt inner loop: withRetry would
+  // burn 1s + 2s + 4s per search before throwing, and only then would polling.js
+  // recognise it as connectivity and skip backoff. With a dozen searches that is
+  // a lot of pointless sleeping. The poll interval is the right retry here.
+  if (isNoInternetError(err)) return false;
+
   // fetch() network failures surface as TypeError with a network-y message.
   // We deliberately do NOT treat *all* TypeErrors as transient — that hid bugs
   // (e.g. parsing errors) behind silent retries.
@@ -79,9 +85,11 @@ function sleep(ms) {
 
 /**
  * Errors that indicate the machine has no internet connectivity.
- * Distinct from transient errors: these should NOT trigger exponential
- * backoff — the app should retry at normal intervals so it recovers
- * quickly when connectivity is restored.
+ *
+ * This is the stronger classification of the two: isTransientError defers to it
+ * and returns false, so a connectivity failure skips the retry loop entirely and
+ * polling.js then skips exponential backoff as well — the app keeps polling at
+ * normal intervals and recovers promptly once the network is back.
  */
 function isNoInternetError(err) {
   if (
