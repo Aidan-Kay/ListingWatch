@@ -71,6 +71,14 @@ Built with [Electron](https://www.electronjs.org/) and [Tailwind CSS](https://ta
 
    Open the **Settings** tab, enter your eBay Production **Client ID** and **Client Secret**, then click **Test Connection** to verify and **Save Settings**.
 
+### Running the tests
+
+```bash
+npm test
+```
+
+Uses Node's built-in `node:test` — no test dependency, and no Electron needed. Covers the term matcher, the per-marketplace request gate, the retry policy, and the polling pipeline.
+
 ---
 
 ## eBay API notes
