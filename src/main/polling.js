@@ -1,10 +1,22 @@
 "use strict";
 
-const { getAdapter } = require("./shared/marketplace-adapters");
 const { isNoInternetError } = require("./shared/retry");
 const { SEEN_IDS_MAX_SIZE, FEED_MAX_SIZE } = require("../shared/constants");
 const { compileLists, countTerms, matchTitle } = require("../shared/keyword-match");
 const { acquireSlot, resetSlots } = require("./shared/request-gate");
+
+/**
+ * Resolve the marketplace adapter for a source.
+ *
+ * Required lazily rather than at module load: the registry pulls in ebay.js,
+ * which reaches Electron's `app` for the userData path as soon as it is loaded.
+ * Deferring it keeps this module — and so fetchSearch's whole pipeline —
+ * loadable under plain node, which is what makes it testable with a fake
+ * adapter passed in.
+ */
+function defaultAdapter(source) {
+  return require("./shared/marketplace-adapters").getAdapter(source);
+}
 
 /**
  * @typedef {Object} PollState
@@ -121,8 +133,10 @@ function applyIncludeLists(items, search, state) {
  * @param {Function} onNewItems - callback(newItems, isInit) after processing
  * @param {Function} onStatus   - callback(searchId, statusPatch)
  * @param {Object}   settings
+ * @param {{search: Function}} [adapter] - injectable so tests can drive the
+ *   whole pipeline with a fake marketplace; defaults to the real registry.
  */
-async function fetchSearch(search, state, onNewItems, onStatus, settings) {
+async function fetchSearch(search, state, onNewItems, onStatus, settings, adapter = defaultAdapter(search.source)) {
   // Capture the generation that owns this fetch. If a save/delete supersedes
   // the search before we resolve, we abort instead of writing stale state.
   const fetchGen = search._generation || 0;
@@ -132,8 +146,6 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings) {
   };
 
   try {
-    const adapter = getAdapter(search.source);
-
     // Hold off until this marketplace's next slot, so a profile's searches don't
     // all hit the same host at once when polling starts.
     const waited = await acquireSlot(search.source);

@@ -20,14 +20,17 @@ async function withRetry(fn, options = {}) {
       return await fn();
     } catch (err) {
       lastError = err;
-      if (attempt < retries && shouldRetry(err)) {
-        const delay = baseDelay * Math.pow(2, attempt);
-        console.warn(
-          `${label ? `[${label}] ` : ""}Transient error (attempt ${attempt + 1}/${retries + 1}), retrying in ${delay}ms:`,
-          err.message,
-        );
-        await sleep(delay);
-      }
+      // Break rather than fall through: the loop used to keep calling fn() on a
+      // non-retryable error, just without the sleep, so a programming error or
+      // a connectivity failure cost four calls instead of one.
+      if (attempt >= retries || !shouldRetry(err)) break;
+
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.warn(
+        `${label ? `[${label}] ` : ""}Transient error (attempt ${attempt + 1}/${retries + 1}), retrying in ${delay}ms:`,
+        err.message,
+      );
+      await sleep(delay);
     }
   }
   throw lastError;
