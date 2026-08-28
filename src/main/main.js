@@ -27,9 +27,15 @@ app.commandLine.appendSwitch("disable-quic");
 // ─── Single Instance Lock ─────────────────────────────────────────────────────
 // Prevents a second instance from running alongside one already in the tray.
 // If a second instance is launched, we focus the existing window and quit.
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
+if (!app.requestSingleInstanceLock()) {
   app.quit();
+  // Stop evaluating the module here. app.quit() is asynchronous, so without
+  // this the losing instance carries on registering whenReady, and can reach
+  // createWindow(), setupIpc(), and startAllSearches() before the quit lands —
+  // briefly double-polling every search and racing the first instance on
+  // searches.json. A top-level return is legal: CommonJS modules are
+  // function-wrapped.
+  return;
 }
 
 // When a second instance is launched (e.g. user double-clicks app icon while
