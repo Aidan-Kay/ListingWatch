@@ -130,11 +130,15 @@ function createWindow() {
     icon: path.join(__dirname, "../../assets/icon.png"),
   });
 
+  if (saved?.maximised) mainWindow.maximize();
+
   mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   // Use 'resized'/'moved' (fire once after gesture ends) instead of 'resize'/'move'
   // (fire on every pixel) to avoid hammering disk during continuous drags.
   mainWindow.on("resized", () => saveWindowState(mainWindow));
   mainWindow.on("moved", () => saveWindowState(mainWindow));
+  mainWindow.on("maximize", () => saveWindowState(mainWindow));
+  mainWindow.on("unmaximize", () => saveWindowState(mainWindow));
 
   // Intercept close: hide to tray if minimizeToTray is enabled, unless we're
   // actually quitting (e.g. from the tray "Quit" menu item).
