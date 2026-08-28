@@ -17,6 +17,20 @@ const { invalidateCompiled, splitTerms } = require("./shared/keyword-match");
 const KEYWORD_FILE_MAX_BYTES = 5 * 1024 * 1024;
 
 /**
+ * Normalise a search's exclude-keyword list to the lower-case form the matcher
+ * assumes. polling.js lower-cases the title and then does a bare
+ * `title.includes(kw)`, so a term stored as "Broken" silently never matches.
+ * The renderer lower-cases on its way in, but import-data and a hand-edited
+ * searches.json both reach state.searches without passing through it — this is
+ * where every route converges.
+ */
+function normaliseExcludeKeywords(search) {
+  search.excludeKeywords = Array.isArray(search.excludeKeywords)
+    ? search.excludeKeywords.map((k) => String(k).trim().toLowerCase()).filter(Boolean)
+    : [];
+}
+
+/**
  * Clean a raw term array: trim, drop blanks, and collapse case-insensitive
  * duplicates while keeping the first spelling the user typed.
  */
@@ -166,20 +180,27 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       search.maxNotifyPrice = Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
     }
     search.includeLists = Array.isArray(search.includeLists) ? search.includeLists.filter((id) => typeof id === "string") : [];
+    normaliseExcludeKeywords(search);
 
     const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
 
     if (search.id) {
       const idx = state.searches.findIndex((s) => s.id === search.id);
       if (idx !== -1) {
-        // Attaching or detaching a list changes what qualifies, so items already
-        // marked seen have to be reconsidered.
-        const prevLists = Array.isArray(state.searches[idx].includeLists) ? state.searches[idx].includeLists : [];
-        const listsChanged = prevLists.join(",") !== search.includeLists.join(",");
+        // Client-side filters decide what an already-fetched page yields, so
+        // changing one means items already marked seen have to be reconsidered.
+        // Server-side filters (keywords, price, category) don't need this:
+        // changing them changes what the API returns, so previously-excluded
+        // items were never in seenIds to begin with.
+        const prev = state.searches[idx];
+        const prevLists = Array.isArray(prev.includeLists) ? prev.includeLists : [];
+        const prevExcludes = Array.isArray(prev.excludeKeywords) ? prev.excludeKeywords : [];
+        const clientFiltersChanged =
+          prevLists.join(",") !== search.includeLists.join(",") || prevExcludes.join(",") !== search.excludeKeywords.join(",");
 
-        state.searches[idx] = { ...state.searches[idx], ...search };
+        state.searches[idx] = { ...prev, ...search };
         stopSearch(search.id, state);
-        if (listsChanged) resetSearchSeenState(state, search.id);
+        if (clientFiltersChanged) resetSearchSeenState(state, search.id);
         if (search.enabled) {
           scheduleSearch(state.searches[idx], state, onNewItems, onStatus, getSettings);
         }
@@ -573,6 +594,7 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
         if (!MARKETPLACE_SOURCES.includes(s.source)) {
           throw new Error(`Invalid backup file: search "${s.name}" has unknown source "${s.source}".`);
         }
+        normaliseExcludeKeywords(s);
       }
 
       stopAllSearches(state);
