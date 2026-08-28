@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { app, safeStorage } = require("electron");
-const { queueWrite, flushAllPendingWrites } = require("./shared/write-queue");
+const { queueWrite, writeAtomicSync, flushAllPendingWrites } = require("./shared/write-queue");
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const userDataPath = app.getPath("userData");
 const searchesFile = path.join(userDataPath, "searches.json");
@@ -205,7 +205,7 @@ function writeWindowState(win) {
   const [x, y] = win.getPosition();
   const [width, height] = win.getSize();
   try {
-    fs.writeFileSync(windowStateFile, JSON.stringify({ x, y, width, height }), "utf8");
+    writeAtomicSync(windowStateFile, JSON.stringify({ x, y, width, height }));
   } catch (e) {
     console.warn("Failed to save window state:", e.message);
   }

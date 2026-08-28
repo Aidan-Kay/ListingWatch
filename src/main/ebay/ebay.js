@@ -6,6 +6,7 @@ const { net } = require("electron");
 const { CURRENCY_SYMBOLS } = require("../shared/constants");
 const { withRetry, isTransientError } = require("../shared/retry");
 const { loadApiUsage, saveApiUsage } = require("../persistence");
+const { writeAtomicSync } = require("../shared/write-queue");
 
 // Use Electron's net.fetch (Chromium stack, respects session.setProxy) in the
 // main process. Falls back to global fetch if net is unavailable (tests/etc).
@@ -251,7 +252,7 @@ async function loadCategoryTree(site) {
   traverse(data.rootCategoryNode, null, 0);
 
   try {
-    fs.writeFileSync(cacheFile, JSON.stringify({ timestamp: Date.now(), categories }), "utf8");
+    writeAtomicSync(cacheFile, JSON.stringify({ timestamp: Date.now(), categories }));
   } catch (e) {
     console.warn(`[ebay] Failed to write category cache for ${site}:`, e.message);
   }
