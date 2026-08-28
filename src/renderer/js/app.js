@@ -257,6 +257,10 @@ function showOfflineBanner(visible) {
     }
   });
 
+  // The main process owns pause state — the tray can change it too.
+  window.api.onPollingState(({ paused }) => setAllPaused(paused));
+  window.api.getPollingState().then(({ paused }) => setAllPaused(paused));
+
   // Listen for search status updates
   window.api.onSearchStatus((status) => {
     const search = searches.find((x) => x.id === status.searchId);

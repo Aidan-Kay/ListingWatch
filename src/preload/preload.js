@@ -1,3 +1,5 @@
+"use strict";
+
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
@@ -41,6 +43,7 @@ contextBridge.exposeInMainWorld("api", {
   // Polling control
   pauseAll: () => ipcRenderer.invoke("pause-all"),
   resumeAll: () => ipcRenderer.invoke("resume-all"),
+  getPollingState: () => ipcRenderer.invoke("get-polling-state"),
 
   // Favourites
   getFavourites: () => ipcRenderer.invoke("get-favourites"),
@@ -73,6 +76,10 @@ contextBridge.exposeInMainWorld("api", {
   onScrollToListing: (callback) => {
     ipcRenderer.removeAllListeners("scroll-to-listing");
     ipcRenderer.on("scroll-to-listing", (_event, itemIds) => callback(itemIds));
+  },
+  onPollingState: (callback) => {
+    ipcRenderer.removeAllListeners("polling-state");
+    ipcRenderer.on("polling-state", (_event, statePatch) => callback(statePatch));
   },
   onPlayNotificationSound: (callback) => {
     ipcRenderer.removeAllListeners("play-notification-sound");

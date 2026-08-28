@@ -317,6 +317,17 @@ async function importData() {
 }
 
 // ─── Status ───────────────────────────────────────────────────────────────────
+// Mirrors the main process's pause state, which is pushed over `polling-state`.
+// The renderer must not decide this for itself: the tray menu pauses too, and a
+// renderer-local flag went stale the moment it did.
+let _allPaused = false;
+
+/** Apply a pause state pushed from the main process. */
+function setAllPaused(paused) {
+  _allPaused = paused;
+  updateStatus();
+}
+
 function updateStatus() {
   const dot = document.getElementById("status-dot");
   const text = document.getElementById("status-text");
@@ -354,20 +365,17 @@ function updateStatus() {
   }
 }
 
-// Tracks whether the user has explicitly paused all searches via the button.
-// This is separate from individual search.enabled states — pauseAll stops
-// polling timers without changing enabled flags.
-let _allPaused = false;
-
+/**
+ * Pause or resume every search. Pausing stops the polling timers without
+ * touching any search's `enabled` flag. The button reflects whatever the main
+ * process reports, so it stays right even when the tray did the pausing.
+ */
 async function togglePauseAll() {
-  if (!_allPaused) {
-    _allPaused = true;
-    await window.api.pauseAll();
-    showToast("All searches paused", "info");
-  } else {
-    _allPaused = false;
+  if (_allPaused) {
     await window.api.resumeAll();
     showToast("All searches resumed", "info");
+  } else {
+    await window.api.pauseAll();
+    showToast("All searches paused", "info");
   }
-  updateStatus();
 }

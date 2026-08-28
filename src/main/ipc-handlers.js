@@ -1,6 +1,6 @@
 "use strict";
 
-const { ipcMain, shell, dialog, nativeImage, session } = require("electron");
+const { ipcMain, shell, dialog, nativeImage, session, net } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const ebay = require("./ebay/ebay");
@@ -112,8 +112,7 @@ function updateSearchStatus(searchId, statusPatch, state, mainWindow) {
 }
 
 /**
- * Draw a small red badge image (used for the taskbar overlay icon).
- * Returns a NativeImage.
+ * Set (or clear) the taskbar overlay badge from a pre-drawn data URL.
  */
 function updateTaskbarBadge(count, dataUrl, mainWindow) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -149,6 +148,50 @@ function makeCallbacks(state, getSettings, getWindow, getTray) {
 }
 
 /**
+ * Own the pause/resume state for the whole app.
+ *
+ * The renderer used to keep its own `_allPaused` flag, set only by its own
+ * button — so pausing from the tray left the status bar claiming "N active
+ * searches" with a green pulsing dot, and the header button still offering to
+ * pause an already-paused app. The main process is the one that actually stops
+ * the timers, so it owns the fact and pushes it out over `polling-state`.
+ *
+ * @param {Object} state
+ * @param {Function} getSettings
+ * @param {Function} getWindow
+ * @param {Function} getTray
+ * @param {{onNewItems: Function, onStatus: Function}} callbacks
+ */
+function createPollingController(state, getSettings, getWindow, getTray, callbacks) {
+  let paused = false;
+
+  function push() {
+    const win = getWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("polling-state", { paused });
+    }
+  }
+
+  return {
+    isPaused: () => paused,
+    /** Re-send the current state — for a renderer that has just loaded. */
+    push,
+    pauseAll() {
+      stopAllSearches(state);
+      paused = true;
+      setTrayFeedTooltip(getTray, state, "ListingWatch \u00b7 Paused");
+      push();
+    },
+    resumeAll() {
+      startAllSearches(state, callbacks.onNewItems, callbacks.onStatus, getSettings);
+      paused = false;
+      setTrayFeedTooltip(getTray, state);
+      push();
+    },
+  };
+}
+
+/**
  * Register all ipcMain handlers.
  *
  * @param {Object}   state       - Shared mutable state: { searches, feed, seenIds, initialised, timers }
@@ -156,8 +199,14 @@ function makeCallbacks(state, getSettings, getWindow, getTray) {
  * @param {Function} setSettings - (newSettings) => void
  * @param {Function} getWindow   - () => BrowserWindow|null
  * @param {Function} [getTray]   - () => Tray|null (optional, for tooltip updates)
+ * @param {{onNewItems: Function, onStatus: Function}} callbacks - built once by main.js
+ * @param {ReturnType<typeof createPollingController>} polling
  */
-function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
+function setupIpc(state, getSettings, setSettings, getWindow, getTray, callbacks, polling) {
+  // Built once by main.js rather than per handler: nothing here is scoped to a
+  // call, and six separate constructions read as though something were.
+  const { onNewItems, onStatus } = callbacks;
+
   // ─── Searches ───────────────────────────────────────────────────────────────
   ipcMain.handle("get-searches", () => searchesForRenderer(state.searches));
 
@@ -181,8 +230,6 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     }
     search.includeLists = Array.isArray(search.includeLists) ? search.includeLists.filter((id) => typeof id === "string") : [];
     normaliseExcludeKeywords(search);
-
-    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
 
     if (search.id) {
       const idx = state.searches.findIndex((s) => s.id === search.id);
@@ -262,7 +309,6 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
     const search = state.searches.find((s) => s.id === id);
     if (!search) return searchesForRenderer(state.searches);
     search.enabled = enabled;
-    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
     if (enabled) {
       scheduleSearch(search, state, onNewItems, onStatus, getSettings);
     } else {
@@ -371,16 +417,9 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   });
 
   // ─── Pause / Resume All ────────────────────────────────────────────────────
-  ipcMain.handle("pause-all", () => {
-    stopAllSearches(state);
-    setTrayFeedTooltip(getTray, state, "ListingWatch \u00b7 Paused");
-  });
-
-  ipcMain.handle("resume-all", () => {
-    const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
-    startAllSearches(state, onNewItems, onStatus, getSettings);
-    setTrayFeedTooltip(getTray, state);
-  });
+  ipcMain.handle("pause-all", () => polling.pauseAll());
+  ipcMain.handle("resume-all", () => polling.resumeAll());
+  ipcMain.handle("get-polling-state", () => ({ paused: polling.isPaused() }));
 
   // ─── Settings ───────────────────────────────────────────────────────────────
   ipcMain.handle("get-settings", () => getSettings());
@@ -472,12 +511,12 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   // ─── Proxy ───────────────────────────────────────────────────────────
   ipcMain.handle("test-proxy", async (_event, proxyUrl) => {
     if (!proxyUrl) return { ok: false, error: "No proxy URL provided" };
+    // Use an isolated session so the test doesn't affect in-flight requests
+    // on the default session.
+    const testSession = session.fromPartition("temp:proxy-test");
     try {
-      // Use an isolated session so the test doesn't affect in-flight requests
-      // on the default session.
-      const testSession = session.fromPartition("temp:proxy-test");
       await testSession.setProxy({ proxyRules: proxyUrl });
-      const res = await require("electron").net.fetch("https://api.ipify.org?format=json", {
+      const res = await net.fetch("https://api.ipify.org?format=json", {
         signal: AbortSignal.timeout(8000),
         session: testSession,
       });
@@ -485,6 +524,10 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       return { ok: true, ip: data.ip };
     } catch (err) {
       return { ok: false, error: err.message };
+    } finally {
+      // The partition is reused by every later test, so leaving the last tested
+      // proxy configured on it would silently route the next test through it.
+      await testSession.setProxy({ mode: "direct" }).catch(() => {});
     }
   });
 
@@ -621,7 +664,6 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
       saveSearches(state.searches);
       saveSettings(merged);
 
-      const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
       startAllSearches(state, onNewItems, onStatus, getSettings);
 
       ebay.invalidateToken();
@@ -633,4 +675,4 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray) {
   });
 }
 
-module.exports = { setupIpc, updateSearchStatus, updateTaskbarBadge, makeCallbacks };
+module.exports = { setupIpc, updateSearchStatus, updateTaskbarBadge, makeCallbacks, createPollingController };

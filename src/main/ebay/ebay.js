@@ -92,10 +92,12 @@ function incrementApiCalls(n = 1) {
   // via flushApiUsage().
   if (!_usageDirty) {
     _usageDirty = true;
+    // unref'd: flushApiUsage() already covers the quit path, so this timer has
+    // no reason to keep the event loop alive on its own.
     setTimeout(() => {
       saveApiUsage(_usage);
       _usageDirty = false;
-    }, 30_000);
+    }, 30_000).unref?.();
   }
 }
 
@@ -115,10 +117,32 @@ function getApiUsage() {
   return { calls: _usage.calls, date: _usage.date };
 }
 
+/**
+ * Fetch an eBay API endpoint and record the call against the daily quota.
+ *
+ * Counting happens here, where the request is actually spent, rather than at
+ * one call site — the counter used to be incremented only after a successful
+ * search(), so the Browse item lookups behind every lightbox open, which are
+ * user-driven and unbounded, went untracked and the Settings progress bar read
+ * optimistically in exactly the session where it needed to be accurate.
+ *
+ * Failed attempts count too, because eBay counts the request rather than the
+ * 200. The OAuth token endpoint deliberately does not go through here: it has
+ * its own rate limit and is not drawn from the Browse quota this meter tracks.
+ */
+async function _meteredFetch(url, init) {
+  incrementApiCalls();
+  return _fetch(url, init);
+}
+
 // ─── OAuth Token Cache ────────────────────────────────────────────────────────
 let accessToken = null;
 let tokenExpiry = 0;
 let _tokenFetchingPromise = null; // deduplicates concurrent token requests
+// Bumped by invalidateToken(). A fetch in flight when the credentials change
+// captures the generation it started under, so its .then() cannot install a
+// token that is already known to be stale — the same guard polling.js uses.
+let _tokenGeneration = 0;
 
 function getAccessToken() {
   if (accessToken && Date.now() < tokenExpiry - 60000) return Promise.resolve(accessToken);
@@ -130,6 +154,7 @@ function getAccessToken() {
     }
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+    const generation = _tokenGeneration;
 
     _tokenFetchingPromise = withRetry(
       async () => {
@@ -155,6 +180,9 @@ function getAccessToken() {
       { retries: 3, label: "ebay:auth" },
     )
       .then((data) => {
+        if (generation !== _tokenGeneration) {
+          throw new Error("eBay credentials changed while the token was being fetched — retry with the new ones");
+        }
         accessToken = data.access_token;
         tokenExpiry = Date.now() + data.expires_in * 1000;
         _tokenFetchingPromise = null;
@@ -174,6 +202,7 @@ function invalidateToken() {
   accessToken = null;
   tokenExpiry = 0;
   _tokenFetchingPromise = null;
+  _tokenGeneration++;
 }
 
 // ─── Category Tree ─────────────────────────────────────────────────────────────
@@ -204,7 +233,7 @@ async function loadCategoryTree(site) {
       // Re-acquire token on each attempt so a stale token (expired between
       // acquisition and the API call) is recovered on retry after invalidation.
       const token = await getAccessToken();
-      const res = await _fetch(`https://api.ebay.com/commerce/taxonomy/v1/category_tree/${treeId}`, {
+      const res = await _meteredFetch(`https://api.ebay.com/commerce/taxonomy/v1/category_tree/${treeId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
@@ -303,7 +332,7 @@ async function search(query) {
       // Re-acquire token on each attempt so a mid-request 401 (stale token) is
       // automatically recovered on the next retry after invalidation.
       const token = await getAccessToken();
-      const res = await _fetch(url, {
+      const res = await _meteredFetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
@@ -328,7 +357,6 @@ async function search(query) {
     },
     { retries: 3, shouldRetry: (err) => err.status === 401 || isTransientError(err), label: `ebay:search:${query.name}` },
   );
-  incrementApiCalls();
 
   return parseApiResults(data, query);
 }
@@ -353,7 +381,10 @@ function collectItemImages(item) {
       if (t.imageUrl) imagesSet.add(ebayImageUrl(t.imageUrl));
     }
   }
-  const images = imagesSet.size > 0 ? [...imagesSet] : image ? [ebayImageUrl(image)] : [];
+  // No `image` fallback: it is derived from item.image.imageUrl, which is also
+  // the first thing added to imagesSet — so an empty set means there was no
+  // primary image either.
+  const images = [...imagesSet];
   return { image, images };
 }
 
@@ -416,20 +447,30 @@ function parseApiResults(data, query) {
 
 // Fetch all images for a single listing via the Browse Item API
 async function getItemImages(numericId, site) {
-  const token = await getAccessToken();
   const marketplaceId = MARKETPLACE_IDS[site] || "EBAY_US";
   const encodedId = encodeURIComponent(`v1|${numericId}|0`);
   const url = `https://api.ebay.com/buy/browse/v1/item/${encodedId}`;
 
   const data = await withRetry(
     async () => {
-      const res = await _fetch(url, {
+      // Token acquired inside the retry, with a 401 branch, exactly as search()
+      // and loadCategoryTree() do. Holding it outside meant a token that expired
+      // between acquisition and the call failed the lightbox instead of
+      // refreshing.
+      const token = await getAccessToken();
+      const res = await _meteredFetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
         },
         signal: AbortSignal.timeout(10000),
       });
+      if (res.status === 401) {
+        invalidateToken();
+        const err = new Error("eBay token rejected in item fetch (401) — will retry with fresh token");
+        err.status = 401;
+        throw err;
+      }
       if (!res.ok) {
         const text = await res.text();
         const err = new Error(`eBay item fetch failed (${res.status}): ${text.slice(0, 200)}`);
@@ -438,7 +479,7 @@ async function getItemImages(numericId, site) {
       }
       return await res.json();
     },
-    { retries: 2, label: `ebay:item:${numericId}` },
+    { retries: 2, shouldRetry: (err) => err.status === 401 || isTransientError(err), label: `ebay:item:${numericId}` },
   );
 
   const images = [];

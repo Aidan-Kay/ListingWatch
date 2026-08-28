@@ -595,12 +595,16 @@ function openListing(url) {
 // ─── Lightbox ─────────────────────────────────────────────────────────────────
 let _lightboxImages = [];
 let _lightboxIndex = 0;
+// Which listing the lightbox is currently showing. The image fetch is async, so
+// this is what tells a resolving fetch whether it is still wanted.
+let _lightboxItemId = null;
 
 async function openImagePopup(itemId) {
   const item = feedItems.find((i) => i.id === itemId) || favourites.find((f) => f.id === itemId);
   if (!item || !item.image) return;
 
   // Show the thumbnail immediately so the lightbox opens without delay
+  _lightboxItemId = itemId;
   _lightboxImages = [ebayImageUrl(item.image)];
   _lightboxIndex = 0;
   _lightboxSetImage();
@@ -613,8 +617,11 @@ async function openImagePopup(itemId) {
   if (item.source === "ebay" && item.itemId && window.api.getEbayItemImages) {
     try {
       const result = await window.api.getEbayItemImages(item.itemId, item.site);
-      // Only update if the lightbox is still showing the same item
-      if (result.ok && result.images.length > 1 && !lightbox.classList.contains("hidden")) {
+      // Bail if the lightbox has since been closed or moved to another listing.
+      // The old check only asked whether the lightbox was open at all, so on a
+      // slow connection listing A's images replaced listing B's.
+      if (_lightboxItemId !== itemId) return;
+      if (result.ok && result.images.length > 1) {
         _lightboxImages = result.images;
         _lightboxSetImage();
       }
@@ -623,7 +630,7 @@ async function openImagePopup(itemId) {
     }
   } else if (item.source === "vinted" && Array.isArray(item.images) && item.images.length > 1) {
     // Photos are already available from the search result — no extra API call needed
-    if (!lightbox.classList.contains("hidden")) {
+    if (_lightboxItemId === itemId) {
       _lightboxImages = item.images;
       _lightboxIndex = 0;
       _lightboxSetImage();
@@ -672,4 +679,5 @@ function closeImagePopup() {
   document.getElementById("image-lightbox-img").src = "";
   _lightboxImages = [];
   _lightboxIndex = 0;
+  _lightboxItemId = null;
 }

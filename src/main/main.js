@@ -60,7 +60,7 @@ const {
   flushAllPendingWrites,
   userDataPath,
 } = require("./persistence");
-const { setupIpc, makeCallbacks } = require("./ipc-handlers");
+const { setupIpc, makeCallbacks, createPollingController } = require("./ipc-handlers");
 const { startAllSearches, stopAllSearches } = require("./polling");
 const { configureRequesterProxy } = require("./vinted/lib/requester");
 
@@ -90,6 +90,12 @@ const getWindow = () => mainWindow;
 
 let tray = null;
 const getTray = () => tray;
+
+// Built once. Every consumer — the IPC handlers, the tray menu, the power-resume
+// handler — shares this pair rather than allocating a fresh closure over the
+// same four getters at each call site.
+const pollingCallbacks = makeCallbacks(state, getSettings, getWindow, getTray);
+const polling = createPollingController(state, getSettings, getWindow, getTray, pollingCallbacks);
 
 // Set to true before calling app.quit() so the close event doesn't intercept.
 let isQuitting = false;
@@ -188,14 +194,11 @@ function createTray() {
     { type: "separator" },
     {
       label: "Pause All Searches",
-      click: () => stopAllSearches(state),
+      click: () => polling.pauseAll(),
     },
     {
       label: "Resume All Searches",
-      click: () => {
-        const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
-        startAllSearches(state, onNewItems, onStatus, getSettings);
-      },
+      click: () => polling.resumeAll(),
     },
     { type: "separator" },
     {
@@ -241,12 +244,11 @@ app.whenReady().then(() => {
   }
 
   ebay.configure(getSettings, userDataPath);
-  setupIpc(state, getSettings, setSettings, getWindow, getTray);
+  setupIpc(state, getSettings, setSettings, getWindow, getTray, pollingCallbacks, polling);
   createWindow();
   createTray();
 
-  const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
-  startAllSearches(state, onNewItems, onStatus, getSettings);
+  startAllSearches(state, pollingCallbacks.onNewItems, pollingCallbacks.onStatus, getSettings);
 });
 
 // ─── Power / Connectivity ─────────────────────────────────────────────────────
@@ -258,17 +260,23 @@ powerMonitor.on("resume", () => {
   console.log("[power] System resumed from sleep — waiting for connectivity...");
 
   function checkAndRestart() {
-    if (net.isOnline()) {
-      console.log("[power] Internet available — restarting all searches");
-      for (const search of state.searches) {
-        search._errorCount = 0;
-      }
-      stopAllSearches(state);
-      const { onNewItems, onStatus } = makeCallbacks(state, getSettings, getWindow, getTray);
-      startAllSearches(state, onNewItems, onStatus, getSettings);
-    } else {
+    if (!net.isOnline()) {
       setTimeout(checkAndRestart, 3000);
+      return;
     }
+    // Waking up is not a reason to un-pause. Before polling state was owned in
+    // one place this restarted regardless, quietly resuming an app the user had
+    // paused before closing the lid.
+    if (polling.isPaused()) {
+      console.log("[power] Internet available — searches stay paused");
+      return;
+    }
+    console.log("[power] Internet available — restarting all searches");
+    for (const search of state.searches) {
+      search._errorCount = 0;
+    }
+    stopAllSearches(state);
+    startAllSearches(state, pollingCallbacks.onNewItems, pollingCallbacks.onStatus, getSettings);
   }
 
   // Give the OS network stack a moment to initialise.
