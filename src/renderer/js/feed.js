@@ -36,101 +36,186 @@ function _refreshFavouriteIdSet() {
   _favouriteIdSet = new Set(favourites.map((f) => f.id));
 }
 
-function renderFeedCard(item, index, zoom) {
-  const dateForAge = item.listingDate || item.foundAt;
+const IMAGE_PLACEHOLDER_SVG = `
+  <svg class="w-6 h-6 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18"/>
+  </svg>`;
+
+/**
+ * Thumbnail cell. The placeholder is always the bottom layer and the photo sits
+ * on top of it, so a broken image only has to hide itself — which is what the
+ * delegated `error` listener in initCardGridInteractions does. The alternative,
+ * rebuilding the placeholder inside an inline onerror attribute, needs an
+ * escaped SVG inside an escaped HTML string inside a template literal, and
+ * nobody edits that safely.
+ */
+function _cardThumbnail(item, zoom) {
+  const photo = item.image
+    ? `<img src="${escapeAttr(item.image)}" alt="" loading="lazy" class="card-thumb absolute inset-0 w-full h-full object-cover object-center" />
+       <div class="image-zoom absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" data-item-id="${escapeAttr(item.id)}">
+         <svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/>
+         </svg>
+       </div>
+       ${
+         item.imageCount > 1
+           ? `<span class="absolute bottom-1 right-1 text-xs text-white bg-black/70 px-1.5 py-0.5 rounded font-medium leading-tight pointer-events-none">${escapeHtml(String(item.imageCount))}</span>`
+           : ""
+       }`
+    : "";
+
+  return `
+    <div class="${zoom.img} flex-shrink-0 rounded-md overflow-hidden bg-neutral-700 relative group">
+      <div class="absolute inset-0 flex items-center justify-center">${IMAGE_PLACEHOLDER_SVG}</div>
+      ${photo}
+    </div>`;
+}
+
+/** Title row: name, NEW/ENDED/SOLD badges, and the favourite star. */
+function _cardHeader(item, zoom, isFavourited) {
   const isNew = Date.now() - new Date(item.foundAt).getTime() < NEW_ITEM_WINDOW_MS;
   const isEnded = item.listingEndDate && new Date(item.listingEndDate).getTime() < Date.now();
   const isSold = isEnded && item.bidCount > 0 && (item.buyingFormats || []).includes("Auction");
-  const formats = item.buyingFormats || [];
-  const formatBadges = formats
-    .map((f) => {
-      const clsMap = { Auction: "badge-auction", "Buy It Now": "badge-bin", "Best Offer": "badge-offer" };
-      const cls = clsMap[f] || "badge-default";
-      return `<span class="badge ${cls} ${zoom.meta}">${escapeHtml(FORMAT_BADGE_LABELS[f] || f)}</span>`;
+
+  const endedBadge = isEnded
+    ? `<span class="badge ${isSold ? "bg-green-600/20 text-green-400" : "bg-neutral-700 text-neutral-500"} ${zoom.meta}">${isSold ? "SOLD" : "ENDED"}</span>`
+    : "";
+
+  return `
+    <div class="flex items-start justify-between gap-2">
+      <p class="${zoom.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
+      <div class="flex items-center gap-0.5 flex-shrink-0">
+        <span class="badge badge-accent feed-new-badge ${zoom.meta} ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
+        ${endedBadge}
+        <button
+          class="fav-btn transition-colors z-10 p-1 rounded ${isFavourited ? "text-yellow-400" : "text-neutral-400 hover:bg-neutral-700"}"
+          data-item-id="${escapeAttr(item.id)}"
+          data-tooltip="${isFavourited ? "Remove from favourites" : "Add to favourites"}"
+        >
+          <svg class="w-5 h-5" fill="${isFavourited ? "currentColor" : "none"}" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
+          </svg>
+        </button>
+      </div>
+    </div>`;
+}
+
+/** Condition line plus the matched-terms line, either of which may be absent. */
+function _cardSubtitles(item, zoom) {
+  const condition = item.condition ? `<p class="${zoom.meta} text-neutral-400 truncate">${escapeHtml(item.condition)}</p>` : "";
+  const matched =
+    Array.isArray(item.matchedTerms) && item.matchedTerms.length > 0
+      ? `<p class="${zoom.meta} text-accent-500 truncate" title="Matched: ${escapeAttr(item.matchedTerms.join(", "))}">${escapeHtml(item.matchedTerms.join(", "))}</p>`
+      : "";
+  return condition + matched;
+}
+
+/** Price row, age, and the search/format/site line. */
+function _cardFooter(item, zoom) {
+  const dateForAge = item.listingDate || item.foundAt;
+  const formatBadges = (item.buyingFormats || [])
+    .map((format) => {
+      const classes = { Auction: "badge-auction", "Buy It Now": "badge-bin", "Best Offer": "badge-offer" };
+      return `<span class="badge ${classes[format] || "badge-default"} ${zoom.meta}">${escapeHtml(FORMAT_BADGE_LABELS[format] || format)}</span>`;
     })
     .join("");
 
+  const price = item.price
+    ? `<span class="${zoom.price} font-semibold text-white">${escapeHtml(item.price)}</span>`
+    : `<span class="${zoom.meta} text-neutral-400">No price</span>`;
+  const shipping = item.shipping ? `<span class="${zoom.meta} text-neutral-400">${escapeHtml(item.shipping)}</span>` : "";
+  const bids = item.bidCount > 0 ? `<span class="${zoom.meta} text-neutral-400">${plural(item.bidCount, "bid")}</span>` : "";
+
+  const attribution =
+    Array.isArray(item.searchIds) && item.searchIds.length > 1
+      ? `<span class="badge bg-neutral-700 text-neutral-400 ${zoom.meta}" title="${escapeAttr(item.searchIds.join(", "))}">${item.searchIds.length} searches</span>`
+      : escapeHtml(item.searchName);
+
+  return `
+    <div class="flex flex-col gap-0.5 mt-auto pt-1">
+      <div class="flex items-center gap-2">${price}${shipping}${bids}</div>
+      <span class="${zoom.meta} text-neutral-400 feed-age" data-date="${escapeAttr(dateForAge)}">Listed ${timeAgo(dateForAge)}</span>
+      <div class="flex items-center justify-between gap-2">
+        <span class="truncate ${zoom.meta} text-neutral-400">${attribution}</span>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          ${formatBadges}
+          ${getSiteBadge(item, zoom.meta)}
+        </div>
+      </div>
+    </div>`;
+}
+
+/**
+ * Render one listing card. Every interactive part carries its identity in a
+ * data- attribute and is dispatched by initCardGridInteractions rather than an
+ * inline handler: escapeAttr is right for a plain attribute but not for one the
+ * HTML parser decodes *before* compiling it as JavaScript, so `&#039;` in an
+ * onclick turns back into a quote and a hostile item URL escapes the string.
+ */
+function renderFeedCard(item, zoom) {
   const cardColorStyle = item.cardColor
     ? `border-color: ${hexToRgba(item.cardColor, 0.75)}; background-image: linear-gradient(135deg, ${hexToRgba(item.cardColor, 0.15)} 0%, ${hexToRgba(item.cardColor, 0.04)} 25%, transparent 40%);`
     : "";
-  const endedStyle = isEnded ? "opacity: 0.5;" : "";
-  const isFavourited = _favouriteIdSet.has(item.id);
+  const endedStyle = item.listingEndDate && new Date(item.listingEndDate).getTime() < Date.now() ? "opacity: 0.5;" : "";
 
   return `
     <div
       class="card p-3 flex gap-3 cursor-pointer hover:bg-neutral-700/50 animate-fade-in relative"
       style="${cardColorStyle}${endedStyle}"
       data-item-id="${escapeAttr(item.id)}"
+      data-url="${escapeAttr(item.url)}"
       data-end-date="${escapeAttr(item.listingEndDate || "")}"
-      onclick="openListing('${escapeAttr(item.url)}')"
       title="${escapeAttr(item.title)}"
     >
-      <!-- Thumbnail -->
-      <div class="${zoom.img} flex-shrink-0 rounded-md overflow-hidden bg-neutral-700 relative group">
-        ${
-          item.image
-            ? `<img src="${escapeAttr(item.image)}" alt="" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center\\'><svg class=\\'w-6 h-6 text-neutral-600\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'currentColor\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18\\'/></svg></div>'" />
-              <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" onclick="event.stopPropagation(); openImagePopup('${escapeAttr(item.id)}')"
-              ><svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0zm-3-1h-2V8m0 0V6m0 2H10"/></svg></div>
-              ${item.imageCount > 1 ? `<span class="absolute bottom-1 right-1 text-xs text-white bg-black/70 px-1.5 py-0.5 rounded font-medium leading-tight pointer-events-none">${item.imageCount}</span>` : ""}`
-            : `<div class="w-full h-full flex items-center justify-center">
-              <svg class="w-6 h-6 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18"/>
-              </svg>
-            </div>`
-        }
-      </div>
-
+      ${_cardThumbnail(item, zoom)}
       <div class="flex-1 min-w-0 flex flex-col">
         <div class="flex flex-col gap-0.5">
-          <div class="flex items-start justify-between gap-2">
-            <p class="${zoom.title} font-medium text-secondary leading-snug line-clamp-2 flex-1">${escapeHtml(item.title)}</p>
-            <div class="flex items-center gap-0.5 flex-shrink-0">
-              <span class="badge badge-accent feed-new-badge ${zoom.meta} ${isNew ? "" : "hidden"}" data-found-at="${escapeAttr(item.foundAt)}">NEW</span>
-              ${isEnded ? `<span class="badge ${isSold ? "bg-green-600/20 text-green-400" : "bg-neutral-700 text-neutral-500"} ${zoom.meta}">${isSold ? "SOLD" : "ENDED"}</span>` : ""}
-              <button
-                class="fav-btn transition-colors z-10 p-1 rounded ${isFavourited ? "text-yellow-400" : "text-neutral-400 hover:bg-neutral-700"}"
-                onclick="event.stopPropagation(); toggleFavourite('${escapeAttr(item.id)}')"
-              >
-                <svg class="w-5 h-5" fill="${isFavourited ? "currentColor" : "none"}" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          ${item.condition ? `<p class="${zoom.meta} text-neutral-400 truncate">${escapeHtml(item.condition)}</p>` : ""}
-          ${
-            Array.isArray(item.matchedTerms) && item.matchedTerms.length > 0
-              ? `<p class="${zoom.meta} text-accent-500 truncate" title="Matched: ${escapeAttr(item.matchedTerms.join(", "))}">${escapeHtml(item.matchedTerms.join(", "))}</p>`
-              : ""
-          }
+          ${_cardHeader(item, zoom, _favouriteIdSet.has(item.id))}
+          ${_cardSubtitles(item, zoom)}
         </div>
-        <div class="flex flex-col gap-0.5 mt-auto pt-1">
-          <div class="flex items-center gap-2">
-            ${
-              item.price
-                ? `<span class="${zoom.price} font-semibold text-white">${escapeHtml(item.price)}</span>`
-                : `<span class="${zoom.meta} text-neutral-400">No price</span>`
-            }
-            ${item.shipping ? `<span class="${zoom.meta} text-neutral-400">${escapeHtml(item.shipping)}</span>` : ""}
-            ${item.bidCount > 0 ? `<span class="${zoom.meta} text-neutral-400">${plural(item.bidCount, "bid")}</span>` : ""}
-          </div>
-          <span class="${zoom.meta} text-neutral-400 feed-age" data-date="${escapeAttr(dateForAge)}">Listed ${timeAgo(dateForAge)}</span>
-          <div class="flex items-center justify-between gap-2">
-            <span class="truncate ${zoom.meta} text-neutral-400">${
-              Array.isArray(item.searchIds) && item.searchIds.length > 1
-                ? `<span class="badge bg-neutral-700 text-neutral-400 ${zoom.meta}" title="${escapeAttr(item.searchIds.join(", "))}">${item.searchIds.length} searches</span>`
-                : escapeHtml(item.searchName)
-            }</span>
-            <div class="flex items-center gap-1 flex-shrink-0">
-              ${formatBadges}
-              ${getSiteBadge(item, zoom.meta)}
-            </div>
-          </div>
-        </div>
+        ${_cardFooter(item, zoom)}
       </div>
     </div>
   `;
+}
+
+/**
+ * Wire up the feed and favourites grids once. Delegation replaces one inline
+ * handler per card — cheaper than ~70 of them, and the prerequisite for
+ * dropping 'unsafe-inline' from the CSP.
+ */
+function initCardGridInteractions() {
+  for (const gridId of ["feed-grid", "favourites-grid"]) {
+    const grid = document.getElementById(gridId);
+    if (!grid) continue;
+
+    grid.addEventListener("click", (e) => {
+      const fav = e.target.closest(".fav-btn");
+      if (fav) {
+        e.stopPropagation();
+        toggleFavourite(fav.dataset.itemId);
+        return;
+      }
+      const zoom = e.target.closest(".image-zoom");
+      if (zoom) {
+        e.stopPropagation();
+        openImagePopup(zoom.dataset.itemId);
+        return;
+      }
+      const card = e.target.closest("[data-url]");
+      if (card && card.dataset.url) openListing(card.dataset.url);
+    });
+
+    // `error` doesn't bubble, so this has to listen in the capture phase.
+    // Hiding the photo reveals the placeholder already sitting behind it.
+    grid.addEventListener(
+      "error",
+      (e) => {
+        if (e.target.classList && e.target.classList.contains("card-thumb")) e.target.classList.add("hidden");
+      },
+      true,
+    );
+  }
 }
 
 // ─── Feed Filtering & Sorting ─────────────────────────────────────────────────
@@ -286,6 +371,15 @@ function updateFeedFilterSearchOptions() {
   }
 }
 
+/** Build one empty-state call-to-action button. */
+function _ctaButton(label, variant, onClick) {
+  const button = document.createElement("button");
+  button.className = `${variant} text-sm mt-1`;
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
 function renderFeed() {
   const empty = document.getElementById("feed-empty");
   const grid = document.getElementById("feed-grid");
@@ -311,11 +405,12 @@ function renderFeed() {
           : "Add a search to start monitoring";
     }
     if (cta) {
+      cta.innerHTML = "";
       if (!hasSearches) {
-        cta.innerHTML = `<button onclick="openSearchModal(null)" class="btn-primary text-sm mt-1">Add Your First Search</button>`;
+        cta.appendChild(_ctaButton("Add Your First Search", "btn-primary", () => openSearchModal(null)));
         cta.classList.remove("hidden");
       } else if (!hasActive) {
-        cta.innerHTML = `<button onclick="showPage('searches')" class="btn-secondary text-sm mt-1">Go to Searches</button>`;
+        cta.appendChild(_ctaButton("Go to Searches", "btn-secondary", () => showPage("searches")));
         cta.classList.remove("hidden");
       } else {
         cta.classList.add("hidden");
@@ -339,7 +434,7 @@ function renderFeed() {
   grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
 
   _refreshFavouriteIdSet();
-  grid.innerHTML = sorted.map((item, index) => renderFeedCard(item, index, zoom)).join("");
+  grid.innerHTML = sorted.map((item) => renderFeedCard(item, zoom)).join("");
 }
 
 /**
@@ -467,11 +562,11 @@ function prependFeedItems(newItems) {
 
   _refreshFavouriteIdSet();
   const fragment = document.createDocumentFragment();
-  sortedNew.forEach((item, i) => {
+  for (const item of sortedNew) {
     const wrapper = document.createElement("div");
-    wrapper.innerHTML = renderFeedCard(item, i, zoom).trim();
+    wrapper.innerHTML = renderFeedCard(item, zoom).trim();
     if (wrapper.firstElementChild) fragment.appendChild(wrapper.firstElementChild);
-  });
+  }
   grid.prepend(fragment);
 
   // Trim excess DOM nodes to stay within FEED_MAX_SIZE

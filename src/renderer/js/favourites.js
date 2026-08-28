@@ -91,7 +91,7 @@ function renderFavourites() {
   const zoom = ZOOM_CONFIG[feedZoom] || ZOOM_CONFIG.medium;
   grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${zoom.minCol}, 1fr))`;
   _refreshFavouriteIdSet();
-  grid.innerHTML = sorted.map((item, i) => renderFeedCard(item, i, zoom)).join("");
+  grid.innerHTML = sorted.map((item) => renderFeedCard(item, zoom)).join("");
 }
 
 /**
