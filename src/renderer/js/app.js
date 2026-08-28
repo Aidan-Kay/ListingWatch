@@ -108,15 +108,25 @@ function showToast(message, type = "info") {
   };
 
   toast.className = `animate-toast-in pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-xl text-white text-sm font-medium ${colors[type] || colors.info}`;
-  toast.innerHTML = `
-    <div class="flex-1">${message}</div>
-    <button onclick="this.parentElement.remove()" class="text-white/70 hover:text-white ml-2">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-      </svg>
-    </button>
-  `;
 
+  // Built structurally rather than with innerHTML: callers interpolate names the
+  // user typed and error strings from imports, so treating the message as markup
+  // is a script-injection route into a renderer that holds window.api — including
+  // getSettings(), which returns the decrypted eBay client secret.
+  const text = document.createElement("div");
+  text.className = "flex-1";
+  text.textContent = message;
+
+  const close = document.createElement("button");
+  close.className = "text-white/70 hover:text-white ml-2";
+  close.innerHTML = `
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+    </svg>
+  `;
+  close.addEventListener("click", () => toast.remove());
+
+  toast.append(text, close);
   container.appendChild(toast);
   setTimeout(() => toast.classList.add("opacity-0", "transition-opacity", "duration-500"), 3500);
   setTimeout(() => toast.remove(), 4000);
