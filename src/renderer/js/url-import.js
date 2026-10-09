@@ -1,5 +1,6 @@
 // ─── URL Import ───────────────────────────────────────────────────────────────
 // Parses eBay and Vinted search URLs into form data and populates the search modal.
+// Depends on: shared/constants.js (toEbayConditionIds, toVintedConditionIds)
 
 // ─── Domain → Site Mappings ───────────────────────────────────────────────────
 const EBAY_DOMAIN_TO_SITE = {
@@ -59,10 +60,13 @@ const EBAY_SYSTEM_PARAMS = new Set([
 // eBay LH_ params handled specifically
 const EBAY_LH_PARAMS = new Set(["LH_BIN", "LH_Auction", "LH_PrefLoc", "LH_ItemCondition", "LH_Complete", "LH_Sold", "LH_FS"]);
 
-// Vinted params that should not become category filters
+// Vinted params that should not become category filters. `status_ids[]` is the
+// condition filter, which has its own picker — leaving it here too would put the
+// same attribute in two places in the form.
 const VINTED_SYSTEM_PARAMS = new Set([
   "search_text",
   "catalog[]",
+  "status_ids[]",
   "price_from",
   "price_to",
   "order",
@@ -171,6 +175,7 @@ function parseEbayUrl(url, hostname) {
     aspectFilters,
     vintedCategory: null,
     vintedFilters: [],
+    vintedConditions: [],
   };
 }
 
@@ -188,6 +193,11 @@ function parseVintedUrl(url, hostname) {
   // Price
   const minPrice = params.get("price_from") || "";
   const maxPrice = params.get("price_to") || "";
+
+  // Condition — repeated as one status_ids[] per condition. Normalised here so a
+  // value Vinted no longer uses is dropped instead of saved into a filter that
+  // would return nothing at all.
+  const vintedConditions = toVintedConditionIds(params.getAll("status_ids[]"));
 
   // Vinted-specific filters — any param with [] that isn't a system param
   const vintedFilters = [];
@@ -220,6 +230,7 @@ function parseVintedUrl(url, hostname) {
     itemLocation: "",
     aspectFilters: [],
     vintedFilters,
+    vintedConditions,
   };
 }
 
@@ -261,6 +272,7 @@ function importSearchFromUrl() {
   if (parsed.source === "vinted") {
     document.getElementById("modal-vinted-site").value = parsed.site;
     document.getElementById("modal-vinted-category").value = parsed.vintedCategory || "";
+    setVintedConditions(parsed.vintedConditions);
     // Load Vinted filters
     clearVintedFilters();
     for (const vf of parsed.vintedFilters) {
@@ -276,8 +288,10 @@ function importSearchFromUrl() {
     document.getElementById("modal-category").value = parsed.category || "";
     document.getElementById("modal-location").value = parsed.itemLocation || "";
     document.getElementById("modal-format").value = parsed.format || "all";
-    // load conditions
-    selectedConditions = parsed.conditions || [];
+    // load conditions — eBay's LH_ItemCondition already carries the numeric IDs
+    // the app stores, but run them through the same normaliser so anything
+    // unrecognised is dropped rather than widening the search once it is saved.
+    selectedConditions = toEbayConditionIds(parsed.conditions);
     updateConditionDisplay();
     // Load aspect filters
     clearAspectFilters();

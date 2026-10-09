@@ -22,7 +22,7 @@ let keywordLists = []; // array of { id, name, terms[], version, updatedAt }
 let editingKeywordListId = null; // id being edited in the manager, null = new/unsaved
 
 // Category tree state
-let currentCategoryTree = []; // flat array of { id, name, depth, parentId }
+let currentCategoryTree = []; // flat array of { id, name, depth, parentId, leaf } — eBay's full tree, every level
 
 // Condition multi-select state
 let selectedConditions = []; // array of condition value strings
@@ -35,3 +35,8 @@ let aspectFilterCounter = 0;
 // Vinted filter state
 let vintedFilters = []; // array of { id, name, values: string }
 let vintedFilterCounter = 0;
+
+// Vinted condition multi-select state — the same six IDs in every category,
+// so unlike the eBay picker there is no per-category list to track.
+let selectedVintedConditions = []; // array of Vinted status ID strings
+let vintedConditionDropdownOpen = false;

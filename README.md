@@ -14,8 +14,8 @@ Built with [Electron](https://www.electronjs.org/) and [Tailwind CSS](https://ta
 - **Multi-source** — Monitor **eBay** and **Vinted** searches in the same feed
 - **Multiple saved searches** — Run any number of keyword/category searches simultaneously
 - **Per-search configuration** — Source, site/locale, keywords, price range, and more per search
-- **eBay-specific filters** — Category, item location, buying format (Auction / Buy It Now), item condition, and category-specific filters (e.g. Brand, Colour)
-- **Vinted-specific filters** — Category ID and category-specific filters (e.g. `video_game_platform_ids`)
+- **eBay-specific filters** — Category (eBay's full tree — search it by name or drill down level by level), item location, buying format (Auction / Buy It Now), item condition (the list matches whichever category you pick), and category-specific filters (e.g. Brand, Colour)
+- **Vinted-specific filters** — Category ID, item condition (New with tags through to Not fully functional — the same set in every category), and category-specific filters (e.g. `video_game_platform_ids`)
 - **Customisable refresh intervals** — Global and per-search minimum/maximum poll intervals (randomised to avoid rate-limit patterns)
 - **Windows notifications** — Native toast notifications for new listings, configurable per buying format and per search. Clicking a notification focuses the app and scrolls to the relevant listing(s)
 - **Per-search card colours** — Colour-code searches for at-a-glance identification in the feed
@@ -70,6 +70,17 @@ Built with [Electron](https://www.electronjs.org/) and [Tailwind CSS](https://ta
 4. **Enter your eBay API credentials** _(required only for eBay searches)_
 
    Open the **Settings** tab, enter your eBay Production **Client ID** and **Client Secret**, then click **Test Connection** to verify and **Save Settings**.
+
+### Data location and moving between machines
+
+Searches, settings, favourites and logs live in the app's data folder:
+
+| OS      | Path                                |
+| ------- | ----------------------------------- |
+| Windows | `%APPDATA%\ListingWatch\`           |
+| Linux   | `~/.config/ListingWatch/`           |
+
+To move to another machine (or OS), copy the `.json` files and `logs/` across; the Chromium cache folders are not needed. eBay credentials are encrypted with the OS keychain and **cannot be decrypted on a different machine** — the app clears them on load, so re-enter them in Settings. Also re-pick any custom notification sound, since the stored path is machine-specific.
 
 ### Running the tests
 

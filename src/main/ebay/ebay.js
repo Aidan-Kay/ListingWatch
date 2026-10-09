@@ -3,10 +3,11 @@
 const fs = require("fs");
 const path = require("path");
 const { net } = require("electron");
-const { CURRENCY_SYMBOLS, ebayImageUrl } = require("../../shared/constants");
+const { CURRENCY_SYMBOLS, EBAY_CONDITIONS, toEbayConditionIds, ebayImageUrl } = require("../../shared/constants");
 const { withRetry, isTransientError } = require("../shared/retry");
 const { loadApiUsage, saveApiUsage } = require("../persistence");
 const { writeAtomicSync } = require("../shared/write-queue");
+const { flattenCategoryTree } = require("./category-tree");
 
 // Use Electron's net.fetch (Chromium stack, respects session.setProxy) in the
 // main process. Falls back to global fetch if net is unavailable (tests/etc).
@@ -206,6 +207,17 @@ function invalidateToken() {
 }
 
 // ─── Category Tree ─────────────────────────────────────────────────────────────
+// The full tree as eBay models it, every level of it. The taxonomy endpoint
+// returns the whole thing in a single response, and this used to keep only the
+// top two levels — so the picker offered containers like "Toys & Games ›
+// Diecast & Vehicles" and could never reach the leaves underneath, which is
+// where listings actually live. Keeping every level costs no extra API call,
+// only disk.
+//
+// Bumped when the shape of a cached entry changes. Without it, an existing
+// truncated cache stays authoritative for its remaining 7 days and the deeper
+// levels simply never appear.
+const CATEGORY_CACHE_VERSION = 2;
 let categoryTreeCache = {};
 
 async function loadCategoryTree(site) {
@@ -215,8 +227,12 @@ async function loadCategoryTree(site) {
   try {
     if (fs.existsSync(cacheFile)) {
       const cached = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
-      // Cache valid for 7 days
-      if (cached.timestamp && Date.now() - cached.timestamp < 7 * 24 * 60 * 60 * 1000) {
+      // Cache valid for 7 days, and only if written by this version of the shape
+      if (
+        cached.version === CATEGORY_CACHE_VERSION &&
+        cached.timestamp &&
+        Date.now() - cached.timestamp < 7 * 24 * 60 * 60 * 1000
+      ) {
         categoryTreeCache[site] = cached.categories;
         return cached.categories;
       }
@@ -258,30 +274,132 @@ async function loadCategoryTree(site) {
     },
     { retries: 3, shouldRetry: (err) => err.status === 401 || isTransientError(err), label: `ebay:categories:${site}` },
   );
-  const categories = [];
-
-  function traverse(node, parentId, depth) {
-    if (!node.category || depth > 2) return;
-    const { categoryId, categoryName } = node.category;
-    if (depth > 0) {
-      categories.push({ id: categoryId, name: categoryName, depth, parentId: parentId || null });
-    }
-    if (node.childCategoryTreeNodes) {
-      for (const child of node.childCategoryTreeNodes) {
-        traverse(child, depth > 0 ? categoryId : null, depth + 1);
-      }
-    }
-  }
-  traverse(data.rootCategoryNode, null, 0);
+  const categories = flattenCategoryTree(data.rootCategoryNode);
 
   try {
-    writeAtomicSync(cacheFile, JSON.stringify({ timestamp: Date.now(), categories }));
+    writeAtomicSync(cacheFile, JSON.stringify({ version: CATEGORY_CACHE_VERSION, timestamp: Date.now(), categories }));
   } catch (e) {
     console.warn(`[ebay] Failed to write category cache for ${site}:`, e.message);
   }
+  console.log(`[ebay] Category tree for ${site}: ${categories.length} categories cached`);
 
   categoryTreeCache[site] = categories;
   return categories;
+}
+
+// ─── Category Conditions ───────────────────────────────────────────────────────
+// eBay offers a different set of item conditions per category — a phone category
+// has no "Very Good"/"Acceptable", a book category has no refurbished tiers. The
+// Browse API reports the real set for a category through its condition
+// refinements, so one search with limit=1 buys the whole list.
+//
+// Cached on disk per site, keyed by category, because the set is a property of
+// the category rather than of the moment: it barely changes, and every uncached
+// lookup is a call against the daily quota the Settings meter tracks.
+const CONDITION_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+let categoryConditionCache = {};
+
+function conditionCacheFile(site) {
+  return path.join(_userDataPath, `category_conditions_${site}.json`);
+}
+
+function readCachedConditions(site, categoryId) {
+  const memo = categoryConditionCache[site]?.[categoryId];
+  if (memo) return memo;
+  try {
+    const file = conditionCacheFile(site);
+    if (!fs.existsSync(file)) return null;
+    const entry = JSON.parse(fs.readFileSync(file, "utf8"))[categoryId];
+    if (!entry?.timestamp || Date.now() - entry.timestamp >= CONDITION_CACHE_TTL_MS) return null;
+    (categoryConditionCache[site] ||= {})[categoryId] = entry.conditions;
+    return entry.conditions;
+  } catch (e) {
+    console.warn(`[ebay] Failed to read condition cache for ${site}:`, e.message);
+    return null;
+  }
+}
+
+function writeCachedConditions(site, categoryId, conditions) {
+  (categoryConditionCache[site] ||= {})[categoryId] = conditions;
+  const file = conditionCacheFile(site);
+  try {
+    // Re-read rather than serialising the in-memory map: other categories may
+    // have been cached by a previous run this file still holds.
+    const all = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
+    all[categoryId] = { timestamp: Date.now(), conditions };
+    writeAtomicSync(file, JSON.stringify(all));
+  } catch (e) {
+    console.warn(`[ebay] Failed to write condition cache for ${site}:`, e.message);
+  }
+}
+
+async function fetchCategoryConditions(site, categoryId) {
+  const marketplaceId = MARKETPLACE_IDS[site] || "EBAY_US";
+  const params = new URLSearchParams({
+    category_ids: categoryId,
+    limit: "1",
+    fieldgroups: "CONDITION_REFINEMENTS",
+  });
+  const url = `https://api.ebay.com/buy/browse/v1/item_summary/search?${params}`;
+
+  const data = await withRetry(
+    async () => {
+      const token = await getAccessToken();
+      const res = await _meteredFetch(url, {
+        headers: { Authorization: `Bearer ${token}`, "X-EBAY-C-MARKETPLACE-ID": marketplaceId },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (res.status === 401) {
+        invalidateToken();
+        const err = new Error("eBay token rejected in condition fetch (401) — will retry with fresh token");
+        err.status = 401;
+        throw err;
+      }
+      if (!res.ok) {
+        const text = await res.text();
+        const err = new Error(`Condition refinement fetch failed (${res.status}): ${text.slice(0, 100)}`);
+        err.status = res.status;
+        throw err;
+      }
+      return await res.json();
+    },
+    {
+      retries: 2,
+      shouldRetry: (err) => err.status === 401 || isTransientError(err),
+      label: `ebay:conditions:${site}:${categoryId}`,
+    },
+  );
+
+  const distributions = data?.refinement?.conditionDistributions;
+  if (!Array.isArray(distributions)) return [];
+  return distributions
+    .filter((d) => d.conditionId)
+    .map((d) => ({ id: String(d.conditionId), label: d.condition || `Condition ${d.conditionId}` }));
+}
+
+/**
+ * The conditions eBay offers for a category, newest cached copy first.
+ *
+ * Falls back to the full static list rather than an empty dropdown whenever the
+ * real set cannot be determined — no category picked yet, a category with no
+ * live listings to refine over, or a failed lookup. An over-broad list of
+ * conditions is a much smaller problem than a control the user cannot use.
+ */
+async function loadCategoryConditions(site, categoryId) {
+  if (!categoryId) return { conditions: EBAY_CONDITIONS, categorySpecific: false };
+
+  const cached = readCachedConditions(site, categoryId);
+  if (cached) return { conditions: cached, categorySpecific: true };
+
+  try {
+    const conditions = await fetchCategoryConditions(site, categoryId);
+    if (conditions.length === 0) return { conditions: EBAY_CONDITIONS, categorySpecific: false };
+    writeCachedConditions(site, categoryId, conditions);
+    return { conditions, categorySpecific: true };
+  } catch (e) {
+    console.warn(`[ebay] Condition lookup failed for ${site}/${categoryId}:`, e.message);
+    return { conditions: EBAY_CONDITIONS, categorySpecific: false };
+  }
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -295,8 +413,9 @@ function buildSearchFilters(query, currency) {
   else filters.push("buyingOptions:{AUCTION|FIXED_PRICE|BEST_OFFER}");
   const locCode = query.itemLocation ? query.itemLocation.toUpperCase() : null;
   if (locCode) filters.push(`itemLocationCountry:${locCode}`);
-  if (query.conditions && query.conditions.length > 0) {
-    filters.push(`conditions:{${query.conditions.join("|")}}`);
+  const conditionIds = toEbayConditionIds(query.conditions);
+  if (conditionIds.length > 0) {
+    filters.push(`conditionIds:{${conditionIds.join("|")}}`);
   }
   return filters;
 }
@@ -498,6 +617,7 @@ module.exports = {
   invalidateToken,
   search,
   loadCategoryTree,
+  loadCategoryConditions,
   getItemImages,
   getApiUsage,
   incrementApiCalls,

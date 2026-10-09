@@ -36,5 +36,8 @@
       "target": "portable",
       "icon": "assets/icon.ico"
     }
+  },
+  "allowScripts": {
+    "electron@29.4.6": true
   }
 }

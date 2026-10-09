@@ -6,6 +6,16 @@
 // Depends on: state.js (keywordLists, editingKeywordListId, searchModalIncludeLists),
 //             helpers.js (escapeHtml, escapeAttr), app.js (showToast)
 
+/**
+ * The lists in display order. Storage keeps them in creation order, so every
+ * place that shows lists sorts here instead — the sidebar, the search-modal
+ * checkboxes, and the "select the first list" fallbacks all agree on which list
+ * comes first.
+ */
+function keywordListsByName() {
+  return keywordLists.slice().sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Terms currently in the editor textarea. */
 function currentEditorTerms() {
   // splitTerms comes from src/shared/keyword-match.js, the same parser the
@@ -30,7 +40,7 @@ function renderIncludeListOptions() {
     return;
   }
 
-  container.innerHTML = keywordLists
+  container.innerHTML = keywordListsByName()
     .map((list) => {
       const checked = searchModalIncludeLists.includes(list.id);
       return `
@@ -66,7 +76,7 @@ function renderKeywordListsPage() {
   } else {
     const stillExists = keywordLists.some((l) => l.id === editingKeywordListId);
     showListsEmptyState(false);
-    selectKeywordList(stillExists ? editingKeywordListId : keywordLists[0].id);
+    selectKeywordList(stillExists ? editingKeywordListId : keywordListsByName()[0].id);
   }
   renderKeywordListSidebar();
   updateListsCountBadge();
@@ -93,7 +103,7 @@ function renderKeywordListSidebar() {
     return;
   }
 
-  container.innerHTML = keywordLists
+  container.innerHTML = keywordListsByName()
     .map((list) => {
       const active = list.id === editingKeywordListId;
       return `
@@ -241,7 +251,7 @@ async function deleteKeywordList() {
     searchModalIncludeLists = searchModalIncludeLists.filter((id) => id !== list.id);
     renderSearches();
     if (keywordLists.length > 0) {
-      selectKeywordList(keywordLists[0].id);
+      selectKeywordList(keywordListsByName()[0].id);
     } else {
       editingKeywordListId = null;
       showListsEmptyState(true);

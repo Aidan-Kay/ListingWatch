@@ -4,6 +4,7 @@
 // Condition select → condition-select.js
 // Aspect filters   → aspect-filters.js
 // Vinted filters   → vinted-filters.js
+// Vinted condition → vinted-condition-select.js
 
 /** Parse a string to int, returning null for empty/non-numeric values (handles 0 correctly). */
 function parseIntOrNull(value) {
@@ -36,9 +37,10 @@ function resetSearchForm() {
   searchModalIncludeLists = [];
   renderIncludeListOptions();
   document.getElementById("modal-category").value = "";
-  document.getElementById("modal-category-l1").innerHTML = '<option value="">— Browse top-level categories —</option>';
-  document.getElementById("modal-category-l2").innerHTML = '<option value="">All sub-categories</option>';
-  document.getElementById("modal-category-l2").classList.add("hidden");
+  document.getElementById("category-search").value = "";
+  clearCategoryLevels(document.getElementById("category-levels"));
+  document.getElementById("category-selected").classList.add("hidden");
+  document.getElementById("category-selected").classList.remove("flex");
   document.getElementById("modal-min-price").value = "";
   document.getElementById("modal-max-price").value = "";
   document.getElementById("modal-location").value = "";
@@ -46,10 +48,13 @@ function resetSearchForm() {
   document.getElementById("modal-min-interval").value = "";
   document.getElementById("modal-max-interval").value = "";
   selectedConditions = [];
+  resetConditions();
   updateConditionDisplay();
   closeConditionDropdown();
   clearAspectFilters();
   clearVintedFilters();
+  setVintedConditions([]);
+  closeVintedConditionDropdown();
   document.getElementById("modal-max-notify-price").value = "";
   setSearchModalEnabled(true);
   setSearchModalNotify(true);
@@ -80,10 +85,14 @@ function populateSearchForm(search) {
   document.getElementById("modal-format").value = search.format || "all";
   document.getElementById("modal-min-interval").value = search.minInterval || "";
   document.getElementById("modal-max-interval").value = search.maxInterval || "";
-  selectedConditions = Array.isArray(search.conditions) ? [...search.conditions] : [];
+  // Searches saved before conditions moved to numeric IDs hold names such as
+  // "LIKE_NEW". Map them here so the right boxes are ticked and the search keeps
+  // the filter its owner set, rather than appearing to have none.
+  selectedConditions = toEbayConditionIds(search.conditions);
   updateConditionDisplay();
   loadAspectFiltersFromSaved(search.aspectFilters);
   loadVintedFiltersFromSaved(search.vintedFilters);
+  setVintedConditions(search.vintedConditions);
   document.getElementById("modal-max-notify-price").value = search.maxNotifyPrice != null ? search.maxNotifyPrice : "";
   setSearchModalEnabled(search.enabled !== false);
   setSearchModalNotify(search.notify !== false);
@@ -284,6 +293,7 @@ function collectSearchFormData() {
             values: vf.values.trim(),
           }))
       : [],
+    vintedConditions: isVinted ? [...selectedVintedConditions] : [],
     cardColor: searchModalCardColor || null,
     minInterval: parseIntOrNull(document.getElementById("modal-min-interval").value),
     maxInterval: parseIntOrNull(document.getElementById("modal-max-interval").value),

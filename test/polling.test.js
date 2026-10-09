@@ -125,6 +125,50 @@ test("showListingsFromHours backfills recent listings on the first fetch", async
   );
 });
 
+test("listings of unknown age are held back from the backfill window", async () => {
+  const search = makeSearch();
+  const state = makeState([search]);
+  const rec = recorder();
+
+  // Vinted's catalogue service reports no listing time, so its adapter stamps
+  // first-seen — always "now" on a first fetch. Trusting that would wave the
+  // entire first page through as recent however old the listings really are.
+  await fetchNow(
+    search,
+    state,
+    rec.onNewItems,
+    rec.onStatus,
+    { showListingsFromHours: 2 },
+    fakeAdapter([[makeItem("dated"), makeItem("undated", { listingDateEstimated: true })]]),
+  );
+
+  assert.equal(rec.batches.length, 1);
+  assert.deepEqual(
+    rec.batches[0].items.map((i) => i.itemId),
+    ["dated"],
+  );
+  // Held back from the feed, but still seen — so it is not re-announced later.
+  assert.equal(state.seenIds[search.id].has("undated"), true);
+});
+
+test("a listing of unknown age is still announced once it turns up as new", async () => {
+  const search = makeSearch();
+  const state = makeState([search]);
+  const rec = recorder();
+  const adapter = fakeAdapter([[makeItem("a")], [makeItem("a"), makeItem("b", { listingDateEstimated: true })]]);
+
+  await fetchNow(search, state, rec.onNewItems, rec.onStatus, SETTINGS, adapter);
+  await fetchNow(search, state, rec.onNewItems, rec.onStatus, SETTINGS, adapter);
+
+  // The backfill window is an init-only concern; steady-state polling announces
+  // undated listings like any other, which is the whole point of the app.
+  assert.equal(rec.batches.length, 1);
+  assert.deepEqual(
+    rec.batches[0].items.map((i) => i.itemId),
+    ["b"],
+  );
+});
+
 // ─── Steady state ─────────────────────────────────────────────────────────────
 
 test("only listings not previously seen are announced", async () => {

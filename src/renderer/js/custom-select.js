@@ -76,11 +76,16 @@ class CustomSelect {
     btn.appendChild(chevronWrap);
     this.chevronWrap = chevronWrap;
 
-    // Floating panel — appended to document.body so it escapes overflow clipping
+    // Floating panel — appended to document.body so it escapes overflow clipping.
+    // Tagged with the select's id so destroy() can find it again: the panel does
+    // not live next to its select, so removing the select alone would strand it
+    // on document.body. That only matters for selects that come and go, like the
+    // category drill-down levels, but it is what destroy() has always assumed.
     const panel = document.createElement("div");
     panel.className =
       "custom-select-panel fixed z-[9998] hidden bg-neutral-800 border border-neutral-700 rounded-md shadow-2xl overflow-y-auto";
     panel.style.maxHeight = "260px";
+    panel.dataset.for = sel.id;
     document.body.appendChild(panel);
     this.panel = panel;
 

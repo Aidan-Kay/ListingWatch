@@ -267,8 +267,15 @@ class VintedClient {
 
   /**
    * Perform an HTTP GET request by executing `fetch()` inside the hidden
-   * BrowserWindow's page context.  This produces a genuine same-origin XHR
-   * with all the correct browser headers and cookies.
+   * BrowserWindow's page context.  This produces a genuine browser XHR with all
+   * the correct headers and cookies.
+   *
+   * The catalogue API lives on `api.<domain>` while the page sits on the site
+   * domain, so these are cross-origin (same-site) requests: they are preflighted,
+   * and they need `credentials: "include"` to carry cookies — `"same-origin"`
+   * would silently drop them and every call would come back unauthenticated.
+   * Only headers Vinted's own front end sends are used, since anything outside
+   * the server's `Access-Control-Allow-Headers` fails the preflight outright.
    *
    * @param {string} url      - Full URL to fetch.
    * @param {Object} [params] - Query parameters (appended to URL).
@@ -284,21 +291,30 @@ class VintedClient {
         const win = await this._ensureWindow();
         const fullUrl = this._buildUrl(url, params);
 
-        // Execute fetch from within the browser page context.
+        // Execute fetch from within the browser page context. The Locale header
+        // is read from the page itself rather than mapped from the domain: it
+        // decides the language of the localised strings in the response (notably
+        // an item's condition), and omitting it makes Vinted answer in French on
+        // every site. `document.documentElement.lang` is exactly what Vinted's
+        // own front end sends, so it stays correct for every country domain.
         const result = await win.webContents.executeJavaScript(`
-          fetch(${JSON.stringify(fullUrl)}, {
-            signal: AbortSignal.timeout(15000),
-            headers: {
+          (() => {
+            const locale = document.documentElement.lang || "";
+            const headers = {
               "Accept": "application/json, text/plain, */*",
-              "Accept-Language": "en-GB,en;q=0.5",
-              "X-Requested-With": "XMLHttpRequest"
-            },
-            credentials: "same-origin"
-          }).then(async (r) => {
-            const ct = r.headers.get("content-type") || "";
-            const body = await r.text();
-            return { status: r.status, contentType: ct, body: body };
-          })
+              "Platform": "web"
+            };
+            if (locale) headers["Locale"] = locale;
+            return fetch(${JSON.stringify(fullUrl)}, {
+              signal: AbortSignal.timeout(15000),
+              headers: headers,
+              credentials: "include"
+            }).then(async (r) => {
+              const ct = r.headers.get("content-type") || "";
+              const body = await r.text();
+              return { status: r.status, contentType: ct, body: body };
+            });
+          })()
         `);
 
         // Check for HTML response — could be a Cloudflare challenge or a
@@ -352,6 +368,11 @@ class VintedClient {
 
   /**
    * Build a full URL with query parameters.
+   *
+   * An array value repeats its key once per element. Note that the catalogue
+   * service rejects repeated keys with a 400 — its multi-value facets must be
+   * comma-joined into a single value, which is what `buildSearchParams` does.
+   *
    * @param {string} url
    * @param {Object} params
    * @returns {string}

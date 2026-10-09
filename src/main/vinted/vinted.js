@@ -2,10 +2,8 @@
 
 const { getRequester } = require("./lib/requester");
 const { Item } = require("./lib/item");
+const { VINTED_API_PATH, buildSearchParams, apiHostFor } = require("./lib/query");
 const { CURRENCY_SYMBOLS } = require("../../shared/constants");
-
-const VINTED_API_URL = "/api/v2";
-const VINTED_PRODUCTS_ENDPOINT = "catalog/items";
 
 // ─── Vinted Domains ───────────────────────────────────────────────────────────
 const VINTED_DOMAINS = {
@@ -25,36 +23,19 @@ async function search(query) {
   const domain = VINTED_DOMAINS[query.site] || "www.vinted.co.uk";
   const requester = getRequester(domain);
 
-  const apiUrl = `https://${domain}${VINTED_API_URL}/${VINTED_PRODUCTS_ENDPOINT}`;
+  // The catalogue service lives on api.<domain>, not the site domain. Requests
+  // still originate from a page loaded on the site domain, which is what makes
+  // them pass CORS — see the requester's hidden-window fetch.
+  const apiUrl = `https://${apiHostFor(domain)}${VINTED_API_PATH}`;
+  const params = buildSearchParams(query);
 
-  const params = {
-    search_text: query.keywords || undefined,
-    catalog_ids: query.vintedCategory || undefined,
-    price_from: query.minPrice || undefined,
-    price_to: query.maxPrice || undefined,
-    order: "newest_first",
-    per_page: 50,
-    page: 1,
-  };
-  // Drop undefined keys so they're not sent as empty query params
-  for (const key of Object.keys(params)) {
-    if (params[key] === undefined) delete params[key];
-  }
-
-  // Apply Vinted category-specific filters (e.g. video_game_platform_ids[] = "1270,1269")
-  // Comma-separated values are split into arrays so _buildUrl repeats the key for each
-  // value, producing video_game_platform_ids[]=1269&video_game_platform_ids[]=1270.
-  if (Array.isArray(query.vintedFilters)) {
-    for (const vf of query.vintedFilters) {
-      if (vf.name && vf.values) {
-        const key = vf.name.endsWith("[]") ? vf.name : `${vf.name}[]`;
-        const raw = String(vf.values);
-        params[key] = raw.includes(",") ? raw.split(",").map((s) => s.trim()) : raw;
-      }
-    }
-  }
-
-  console.log(`[vinted] [${query.name}] API Request: ${apiUrl}`);
+  // Log the parameters, not just the endpoint: the service ignores names it does
+  // not recognise instead of rejecting them, so a mis-mapped filter shows up as
+  // quietly wrong results and this line is the only place it is visible.
+  const paramNote = Object.entries(params)
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+  console.log(`[vinted] [${query.name}] API Request: ${apiUrl}?${paramNote}`);
 
   const response = await requester.get(apiUrl, params);
   if (response.status !== 200) {
@@ -67,13 +48,17 @@ async function search(query) {
     return [];
   }
   return items.map((raw) => {
-    const item = new Item(raw);
+    const item = new Item(raw, domain);
     const currencySymbol = CURRENCY_SYMBOLS[item.currency] || item.currency + " ";
     const price = item.price ? `${currencySymbol}${parseFloat(item.price).toFixed(2)}` : null;
-    const images =
-      Array.isArray(raw.photos) && raw.photos.length > 0
-        ? raw.photos.map((p) => p.full_size_url || p.url).filter(Boolean)
-        : [item.photo].filter(Boolean);
+    const images = item.photos;
+
+    // Vinted's catalogue service exposes no listing timestamp, so the moment the
+    // app first saw the listing stands in for one. Only genuinely new items reach
+    // the feed — anything already in seenIds is never re-pushed — so this is
+    // stamped once, on first sighting, and stays put from then on.
+    const foundAt = new Date().toISOString();
+
     return {
       id: `${query.id}_${item.id}`,
       itemId: String(item.id),
@@ -85,36 +70,43 @@ async function search(query) {
       title: item.title,
       price,
       shipping: null,
-      condition: item.sizeTitle || null,
-      image: item.photo || null,
+      condition: item.conditionTitle,
+      image: item.photo,
       images,
       imageCount: images.length,
       url: item.url,
       buyingFormats: ["Buy It Now"],
       priceNumeric: item.price ? parseFloat(item.price) : null,
       bidCount: 0,
-      listingDate: item.createdAtTs ? item.createdAtTs.toISOString() : null,
+      listingDate: foundAt,
+      // Flags listingDate as a first-seen stand-in rather than a real listing
+      // time, so age-based logic can tell the difference. Without it the initial
+      // backfill would read every listing on the first page as brand new.
+      listingDateEstimated: true,
+      // Vinted listings do not expire the way an auction does; kept for shape
+      // parity with the eBay adapter.
       listingEndDate: null,
-      foundAt: new Date().toISOString(),
+      foundAt,
     };
   });
 }
 
-// Fetch all images for a single Vinted listing via the item detail API
-async function getItemImages(itemId, site) {
-  const domain = VINTED_DOMAINS[site] || "www.vinted.co.uk";
-  const requester = getRequester(domain);
-
-  const apiUrl = `https://${domain}${VINTED_API_URL}/items/${itemId}`;
-  const response = await requester.get(apiUrl);
-
-  if (response.status !== 200) {
-    throw new Error(`Vinted item API returned status ${response.status}`);
-  }
-
-  const item = response.data.item;
-  const photos = item.photos || (item.photo ? [item.photo] : []);
-  return photos.map((p) => p.url).filter(Boolean);
+/**
+ * Fetch all images for a single Vinted listing.
+ *
+ * No longer possible: `/api/v2/items/{id}` was retired alongside the catalogue
+ * endpoint, and its replacement (`api.<domain>/item-details/item/{id}`) refuses
+ * browser clients outright with `{"code":"WEB_NOT_SUPPORTED"}` — it serves the
+ * mobile apps only. The item page itself is server-rendered with its photo URLs
+ * buried in escaped Next.js flight data, which is too brittle to scrape.
+ *
+ * Catalogue results already carry the main photo, so callers fall back to the
+ * item's own `images`. Kept to satisfy the marketplace-adapter contract.
+ *
+ * @returns {Promise<string[]>} Always empty — no additional images are available.
+ */
+async function getItemImages() {
+  return [];
 }
 
 module.exports = { search, getItemImages };

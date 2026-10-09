@@ -562,6 +562,15 @@ function setupIpc(state, getSettings, setSettings, getWindow, getTray, callbacks
     }
   });
 
+  ipcMain.handle("get-category-conditions", async (_event, site, categoryId) => {
+    try {
+      const { conditions, categorySpecific } = await ebay.loadCategoryConditions(site, categoryId);
+      return { ok: true, conditions, categorySpecific };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   // ─── Item Images ────────────────────────────────────────────────────────────
   // Both eBay and Vinted dispatch through the adapter registry. Adding a new
   // marketplace requires no changes here — just register it in marketplace-adapters.js.

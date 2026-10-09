@@ -227,6 +227,12 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings, adapte
       if (showHours > 0) {
         const cutoff = Date.now() - showHours * 3600_000;
         initialItems = newItems.filter((item) => {
+          // Sources that cannot report a listing time stamp the moment they were
+          // first seen instead, which on a first fetch is always "now". Treating
+          // that as a real listing date would pass the whole first page through
+          // this window, announcing listings of any age as recent, so items of
+          // unknown age are held back rather than guessed at.
+          if (item.listingDateEstimated) return false;
           const ts = item.listingDate || item.foundAt;
           return ts && new Date(ts).getTime() >= cutoff;
         });
