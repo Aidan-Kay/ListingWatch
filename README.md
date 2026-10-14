@@ -36,7 +36,7 @@ Built with [Electron](https://www.electronjs.org/) and [Tailwind CSS](https://ta
 
 ## Requirements
 
-- [Node.js](https://nodejs.org/) 18 or later
+- [Node.js](https://nodejs.org/) 22.12 or later (required by Electron 44)
 - For **eBay searches**: an [eBay Developer](https://developer.ebay.com/) account with a **Production** application key pair (Client ID and Client Secret)
 - Vinted searches require no API credentials
 

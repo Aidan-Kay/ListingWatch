@@ -11,8 +11,9 @@
     <link rel="stylesheet" href="styles/style.css" />
   </head>
   <body class="bg-primary text-secondary font-sans h-screen flex flex-col overflow-hidden select-none">
-    <!-- Titlebar drag region -->
-    <div style="-webkit-app-region: drag; position: fixed; top: 0; left: 0; right: 120px; height: var(--titlebar-height); z-index: 5"></div>
+    <!-- Titlebar drag region. The titlebar-area env vars mark the strip left free by the
+         window controls, which Linux desktops may place on either side. -->
+    <div style="-webkit-app-region: drag; position: fixed; top: 0; left: env(titlebar-area-x, 0); width: env(titlebar-area-width, calc(100% - 120px)); height: var(--titlebar-height); z-index: 5"></div>
 
     <!-- Header -->
     <header class="flex flex-shrink-0 border-b border-neutral-700" style="padding-top: var(--titlebar-height)">
