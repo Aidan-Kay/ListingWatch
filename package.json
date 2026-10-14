@@ -1,6 +1,6 @@
 {
   "name": "listing-watch",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "ListingWatch — multi-site listing monitor",
   "main": "src/main/main.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "dev": "npx electron .",
     "build:css": "npx tailwindcss -i ./src/renderer/styles/input.css -o ./src/renderer/styles/style.css --minify",
     "build:win": "npm run build:css && npx electron-builder --win --publish never",
+    "build:linux": "npm run build:css && npx electron-builder --linux --publish never",
     "build:all": "npm run build:css && npx electron-builder --publish never",
     "test": "node --test \"test/**/*.test.js\""
   },
@@ -26,8 +27,9 @@
     "appId": "com.listingwatch.app",
     "productName": "ListingWatch",
     "files": [
-      "**/*",
-      "!node_modules/*"
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
     ],
     "directories": {
       "output": "release"
@@ -35,6 +37,11 @@
     "win": {
       "target": "portable",
       "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png",
+      "category": "Utility"
     }
   }
 }

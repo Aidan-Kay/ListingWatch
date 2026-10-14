@@ -1,0 +1,56 @@
+# Builds the Windows portable .exe and the Linux AppImage on native runners
+# when a version tag (v*) is pushed, then attaches both to a draft GitHub
+# release. Review the draft's notes and publish it by hand.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            build-script: build:win
+            output: release/*.exe
+          - os: ubuntu-latest
+            build-script: build:linux
+            output: release/*.AppImage
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run ${{ matrix.build-script }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-${{ matrix.os }}
+          path: ${{ matrix.output }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" dist/*
+          --repo "$GITHUB_REPOSITORY"
+          --title "$GITHUB_REF_NAME"
+          --generate-notes
+          --draft

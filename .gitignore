@@ -5,7 +5,6 @@ src/renderer/styles/style.css
 .md/
 CLAUDE.md
 
-.github/
 
 # Secrets / credentials
 .env*

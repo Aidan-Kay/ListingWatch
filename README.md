@@ -90,6 +90,26 @@ npm test
 
 Uses Node's built-in `node:test` — no test dependency, and no Electron needed. Covers the term matcher, the per-marketplace request gate, the retry policy, and the polling pipeline.
 
+### Building and releasing
+
+```bash
+npm run build:win    # Windows portable .exe (on Linux this needs wine)
+npm run build:linux  # Linux AppImage
+```
+
+Output goes to `release/`.
+
+To publish a release, bump `version` in `package.json`, commit, then push a matching tag:
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+The [Release workflow](.github/workflows/release.yml) builds the `.exe` on a Windows runner and the AppImage on a Linux runner, runs the tests, and attaches both to a **draft** GitHub release. Edit the draft's notes and publish it.
+
+The AppImage needs FUSE 2. On Ubuntu 22.04 and later, install it with `sudo apt install libfuse2t64` (`libfuse2` before 24.04), or run the AppImage with `--appimage-extract-and-run`.
+
 ---
 
 ## eBay API notes
