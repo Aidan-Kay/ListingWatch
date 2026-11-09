@@ -281,50 +281,77 @@ async function fetchSearch(search, state, onNewItems, onStatus, settings, adapte
 }
 
 /**
+ * The live search a polling loop may keep driving, or null if the loop has been
+ * superseded and must end.
+ *
+ * A loop owns its search only while the generation it was started under is
+ * still current. Checking `enabled` alone is not enough: a stop-then-restart
+ * (Pause/Resume, wake from sleep, an edit) leaves the search enabled, so a
+ * fetch that was in flight across the restart would carry on and schedule its
+ * own next poll — a second, permanent loop beside the new one. Every wake from
+ * sleep added another, and the eBay daily quota went with them.
+ */
+function liveSearchForLoop(state, searchId, generation) {
+  const live = state.searches.find((s) => s.id === searchId);
+  if (!live || !live.enabled || (live._generation || 0) !== generation) return null;
+  return live;
+}
+
+/** Random poll delay with exponential back-off for consecutive errors (max 16×). */
+function nextPollDelay(search, settings) {
+  const errorCount = search._errorCount || 0;
+  const backoffMultiplier = Math.min(Math.pow(2, errorCount), 16);
+  const delay = randomInterval(search, settings) * backoffMultiplier;
+  const delayNote = `Next fetch in ${Math.round(delay / 1000)}s`;
+  if (errorCount > 0) {
+    console.warn(`[${search.source}] [${search.name}] ${errorCount} consecutive error(s) — backing off. ${delayNote}`);
+  } else {
+    console.log(`[${search.source}] [${search.name}] ${delayNote}`);
+  }
+  return delay;
+}
+
+function clearSearchTimer(state, searchId) {
+  if (state.timers[searchId]) {
+    clearTimeout(state.timers[searchId]);
+    delete state.timers[searchId];
+  }
+}
+
+/**
  * Schedule repeating fetches for a search. Performs an immediate fetch — as
  * immediate as the per-marketplace spacing allows, which is what keeps a
  * whole profile starting at once from arriving as one burst — then queues the
  * next one after a random interval.
+ *
+ * Replaces any loop already running for the search: there is only ever one.
  *
  * @param {Object}   search
  * @param {Object}   state    - { searches, timers, feed, seenIds, initialised }
  * @param {Function} onNewItems
  * @param {Function} onStatus
  * @param {Function} getSettings - () => settings (read latest at schedule time)
+ * @param {{search: Function}} [adapter] - injectable for tests; see fetchSearch
  */
-function scheduleSearch(search, state, onNewItems, onStatus, getSettings) {
+function scheduleSearch(search, state, onNewItems, onStatus, getSettings, adapter) {
   if (!search.enabled) return;
 
-  // Bump the generation token so any in-flight fetch from a superseded
-  // schedule (e.g. previous start before a config change) cannot mutate
-  // state when it eventually resolves.
+  clearSearchTimer(state, search.id);
+  // Bump the generation token: any in-flight fetch or pending timer from a
+  // superseded loop sees it has changed and ends instead of polling on.
   search._generation = (search._generation || 0) + 1;
+  const generation = search._generation;
 
-  fetchSearch(search, state, onNewItems, onStatus, getSettings()).then(() => {
-    function scheduleNext() {
-      const current = state.searches.find((s) => s.id === search.id);
-      if (!current || !current.enabled) return;
-      // Exponential back-off when consecutive errors accumulate (max 16× normal interval).
-      const errorCount = current._errorCount || 0;
-      const backoffMultiplier = Math.min(Math.pow(2, errorCount), 16);
-      const delay = randomInterval(current, getSettings()) * backoffMultiplier;
-      if (errorCount > 0) {
-        console.warn(
-          `[${current.source}] [${current.name}] ${errorCount} consecutive error(s) — backing off. Next fetch in ${Math.round(delay / 1000)}s`,
-        );
-      } else {
-        console.log(`[${current.source}] [${current.name}] Next fetch in ${Math.round(delay / 1000)}s`);
-      }
-      state.timers[search.id] = setTimeout(async () => {
-        const latest = state.searches.find((s) => s.id === search.id);
-        if (latest && latest.enabled) {
-          await fetchSearch(latest, state, onNewItems, onStatus, getSettings());
-          scheduleNext();
-        }
-      }, delay);
-    }
-    scheduleNext();
-  });
+  async function pollAndReschedule(target) {
+    await fetchSearch(target, state, onNewItems, onStatus, getSettings(), adapter);
+    const live = liveSearchForLoop(state, search.id, generation);
+    if (!live) return;
+    state.timers[search.id] = setTimeout(() => {
+      const latest = liveSearchForLoop(state, search.id, generation);
+      if (latest) pollAndReschedule(latest);
+    }, nextPollDelay(live, getSettings()));
+  }
+  pollAndReschedule(search);
 }
 
 /**
@@ -333,10 +360,7 @@ function scheduleSearch(search, state, onNewItems, onStatus, getSettings) {
  * @param {Object} state - { timers, initialised }
  */
 function stopSearch(searchId, state) {
-  if (state.timers[searchId]) {
-    clearTimeout(state.timers[searchId]);
-    delete state.timers[searchId];
-  }
+  clearSearchTimer(state, searchId);
   // `initialised` is deliberately left alone. It records "this search has fetched
   // at least once", which stays true across a pause. Clearing it would send the
   // next poll down the init path, where showListingsFromHours defaults to 0 and
@@ -376,10 +400,10 @@ function stopAllSearches(state) {
  * @param {Function} onStatus
  * @param {Function} getSettings
  */
-function startAllSearches(state, onNewItems, onStatus, getSettings) {
+function startAllSearches(state, onNewItems, onStatus, getSettings, adapter) {
   for (const search of state.searches) {
     if (search.enabled) {
-      scheduleSearch(search, state, onNewItems, onStatus, getSettings);
+      scheduleSearch(search, state, onNewItems, onStatus, getSettings, adapter);
     }
   }
 }

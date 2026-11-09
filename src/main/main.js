@@ -256,7 +256,17 @@ app.whenReady().then(() => {
 // Searches that fire immediately will fail, and without this handler those
 // failures would trigger exponential backoff, making the user wait a long time.
 // Instead we wait for connectivity, reset error counters, and restart polling.
+//
+// On Linux the event arrives twice for a single wake (seen in the logs a
+// millisecond apart), so a restart already waiting on connectivity absorbs any
+// further resume events rather than running a second stop/start alongside it.
+let _resumeRestartPending = false;
 powerMonitor.on("resume", () => {
+  if (_resumeRestartPending) {
+    console.log("[power] Duplicate resume event ignored — restart already pending");
+    return;
+  }
+  _resumeRestartPending = true;
   console.log("[power] System resumed from sleep — waiting for connectivity...");
 
   function checkAndRestart() {
@@ -264,6 +274,7 @@ powerMonitor.on("resume", () => {
       setTimeout(checkAndRestart, 3000);
       return;
     }
+    _resumeRestartPending = false;
     // Waking up is not a reason to un-pause. Before polling state was owned in
     // one place this restarted regardless, quietly resuming an app the user had
     // paused before closing the lid.

@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { fetchSearch, stopSearch, stopAllSearches } = require("../src/main/polling");
+const { fetchSearch, scheduleSearch, stopSearch, stopAllSearches, startAllSearches } = require("../src/main/polling");
 const { resetSlots } = require("../src/main/shared/request-gate");
 const { invalidateCompiled } = require("../src/shared/keyword-match");
 const { SEEN_IDS_MAX_SIZE, FEED_MAX_SIZE } = require("../src/shared/constants");
@@ -424,4 +424,93 @@ test("a successful fetch clears the consecutive-error counter", async () => {
 
   await fetchNow(search, state, rec.onNewItems, rec.onStatus, SETTINGS, fakeAdapter([[makeItem("a")]]));
   assert.equal(search._errorCount, 0);
+});
+
+// ─── Polling loop ownership ───────────────────────────────────────────────────
+// A search must only ever have one polling loop. A fetch in flight across a
+// stop-then-restart used to schedule its own next poll when it finished, so
+// every Pause/Resume, edit or wake from sleep could leave another loop behind —
+// each spending its own share of the eBay daily quota.
+
+const LOOP_SETTINGS = { ...SETTINGS, minInterval: 60, maxInterval: 60 };
+const POLL_MS = 60_000;
+
+/** An adapter whose first call hangs until released; later calls return at once. */
+function adapterWithHungFirstCall() {
+  let calls = 0;
+  let release;
+  const hung = new Promise((resolve) => (release = resolve));
+  return {
+    calls: () => calls,
+    release: () => release([]),
+    search: async () => {
+      calls++;
+      return calls === 1 ? hung : [];
+    },
+  };
+}
+
+/** Let pending promise continuations run (setImmediate is left unmocked). */
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+async function advance(t, ms) {
+  t.mock.timers.tick(ms);
+  await settle();
+}
+
+function startLoopHarness(t) {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  resetSlots();
+  const search = makeSearch();
+  const state = makeState([search]);
+  const rec = recorder();
+  const adapter = adapterWithHungFirstCall();
+  const start = () => scheduleSearch(search, state, rec.onNewItems, rec.onStatus, () => LOOP_SETTINGS, adapter);
+  return { search, state, rec, adapter, start };
+}
+
+test("a fetch in flight across a stop/restart does not leave a second loop", async (t) => {
+  const { state, rec, adapter, start } = startLoopHarness(t);
+
+  start();
+  await settle(); // first fetch is now hung on the network
+  stopAllSearches(state);
+  startAllSearches(state, rec.onNewItems, rec.onStatus, () => LOOP_SETTINGS, adapter);
+  await settle();
+  adapter.release(); // the stale fetch finally comes back
+  await settle();
+  assert.equal(adapter.calls(), 2);
+
+  await advance(t, POLL_MS);
+  await advance(t, POLL_MS);
+  assert.equal(adapter.calls(), 4, "one poll per interval — not one per loop");
+});
+
+test("rescheduling a running search replaces its loop rather than adding one", async (t) => {
+  const { adapter, start } = startLoopHarness(t);
+
+  start();
+  await settle();
+  start(); // e.g. toggle-search enabling a search that is already running
+  await advance(t, 1_000); // no stopAll here, so the request gate's spacing applies
+  adapter.release();
+  await settle();
+
+  await advance(t, POLL_MS);
+  await advance(t, POLL_MS);
+  assert.equal(adapter.calls(), 4);
+});
+
+test("a stopped search's in-flight fetch does not restart polling", async (t) => {
+  const { search, state, adapter, start } = startLoopHarness(t);
+
+  start();
+  await settle();
+  stopSearch(search.id, state); // still enabled, as during Pause All
+  adapter.release();
+  await settle();
+
+  await advance(t, POLL_MS * 3);
+  assert.equal(adapter.calls(), 1);
+  assert.equal(state.timers[search.id], undefined);
 });
