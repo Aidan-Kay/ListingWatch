@@ -108,7 +108,7 @@ git push origin v1.2.0
 
 The [Release workflow](.github/workflows/release.yml) builds the `.exe` on a Windows runner and the AppImage on a Linux runner, runs the tests, and attaches both to a **draft** GitHub release. Edit the draft's notes and publish it.
 
-The AppImage needs FUSE 2. On Ubuntu 22.04 and later, install it with `sudo apt install libfuse2t64` (`libfuse2` before 24.04), or run the AppImage with `--appimage-extract-and-run`.
+The AppImage is packaged with the static type 2 AppImage runtime (`toolsets.appimage` in `package.json`), so it runs on systems that only have FUSE 3 and does not need libfuse2. On a system with no FUSE at all, run it with `--appimage-extract-and-run`.
 
 ---
 
